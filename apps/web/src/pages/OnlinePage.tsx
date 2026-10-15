@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { parseUci, type Color, type OnlinePublicState } from '@faelchess/shared';
+import { START_FEN, parseUci, type Color, type OnlinePublicState } from '@faelchess/shared';
 import { Check, Copy, Eye, Flag, Handshake, Swords } from 'lucide-react';
 import { Divider, Flex, HStack, Stack } from 'styled-system/jsx';
 import { Board, type BoardColor } from '../components/Board';
@@ -8,13 +8,18 @@ import { Clock } from '../components/Clock';
 import { GameLayout } from '../components/GameLayout';
 import { Muted, Panel } from '../components/kit';
 import { MoveList } from '../components/MoveList';
+import { MoveNav } from '../components/MoveNav';
 import { Alert, Badge, Button, Clipboard, Heading, Input, Spinner, Text } from '../components/ui';
 import { fetchOnlineState, getSocket, joinOnlineGame } from '../lib/online';
 import { getOnlineToken, type Profile } from '../lib/profile';
+import { capturedFor, materialFromFen } from '../lib/material';
+import { useMoveBrowser } from '../lib/useMoveBrowser';
+import { useMoveSound } from '../lib/useMoveSound';
 import { navigate } from '../lib/router';
 import { resultText, tcLabel } from './PlayPage';
 
 const toBoard = (c: Color): BoardColor => (c === 'w' ? 'white' : 'black');
+const NO_MOVES: { uci: string; san: string }[] = [];
 
 export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profile }) {
   const [state, setState] = useState<OnlinePublicState | null>(null);
@@ -87,6 +92,10 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
     [state, tick],
   );
 
+  // Rever lances anteriores sem sair da partida (← → ou clicando na lista).
+  const browser = useMoveBrowser(state?.startFen ?? START_FEN, state?.moves ?? NO_MOVES);
+  useMoveSound(state?.moves ?? NO_MOVES, browser.index, state?.status === 'over');
+
   const emit = (event: string, extra: object = {}) => getSocket().emit(event, { gameId, token, ...extra });
 
   const onMove = (uci: string) => {
@@ -140,18 +149,21 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
   const freeSeat = state.status === 'waiting' && !myColor;
   const tc = tcLabel(state.timeControl);
 
+  // Material da posição na tela (ao rever um lance, mostra o placar daquele momento).
+  const material = materialFromFen(browser.live ? fen : browser.viewFen);
+
   const board = (
     <>
-      <Clock name={seatName(top)} sub={seatSub(top)} ms={remaining(top)} active={state.status === 'playing' && turn === top} />
+      <Clock name={seatName(top)} sub={seatSub(top)} captured={capturedFor(material, top)} ms={remaining(top)} active={state.status === 'playing' && turn === top} />
       <Board
-        fen={fen}
+        fen={browser.live ? fen : browser.viewFen}
         orientation={orientation}
-        movable={canPlay ? toBoard(myColor!) : undefined}
-        lastMove={lastUci ? [lastUci.slice(0, 2), lastUci.slice(2, 4)] : undefined}
-        check={new Chess(fen).inCheck()}
+        movable={canPlay && browser.live ? toBoard(myColor!) : undefined}
+        lastMove={browser.live ? (lastUci ? [lastUci.slice(0, 2), lastUci.slice(2, 4)] : undefined) : browser.viewLastMove}
+        check={browser.live ? new Chess(fen).inCheck() : browser.viewCheck}
         onMove={onMove}
       />
-      <Clock name={seatName(bottom)} sub={seatSub(bottom)} ms={remaining(bottom)} active={state.status === 'playing' && turn === bottom} />
+      <Clock name={seatName(bottom)} sub={seatSub(bottom)} captured={capturedFor(material, bottom)} ms={remaining(bottom)} active={state.status === 'playing' && turn === bottom} />
     </>
   );
 
@@ -234,7 +246,8 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
           )}
         </HStack>
         <Divider />
-        <MoveList moves={state.moves} current={state.moves.length - 1} maxH={{ base: '40', lg: '72' }} />
+        <MoveNav browser={browser} />
+        <MoveList moves={state.moves} current={browser.index} onSelect={browser.go} maxH={{ base: '40', lg: '72' }} />
       </Panel>
 
       {error && (

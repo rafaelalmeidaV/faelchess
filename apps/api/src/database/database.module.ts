@@ -1,6 +1,6 @@
 import { Global, Inject, Injectable, Logger, Module, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { GameDoc, PositionDoc } from '@faelchess/shared';
+import type { GameDoc, PositionDoc, PuzzleAttemptDoc, PuzzleDoc, PuzzleRatingDoc } from '@faelchess/shared';
 import { Collection, Db, MongoClient } from 'mongodb';
 
 export const MONGO_CLIENT = Symbol('MONGO_CLIENT');
@@ -11,11 +11,17 @@ export class Collections implements OnModuleInit {
   readonly db: Db;
   readonly games: Collection<GameDoc>;
   readonly positions: Collection<PositionDoc>;
+  readonly puzzles: Collection<PuzzleDoc>;
+  readonly puzzleAttempts: Collection<PuzzleAttemptDoc>;
+  readonly puzzleRatings: Collection<PuzzleRatingDoc>;
 
   constructor(@Inject(MONGO_CLIENT) client: MongoClient, config: ConfigService) {
     this.db = client.db(config.get('MONGODB_DB', 'faelchess'));
     this.games = this.db.collection<GameDoc>('games');
     this.positions = this.db.collection<PositionDoc>('positions');
+    this.puzzles = this.db.collection<PuzzleDoc>('puzzles');
+    this.puzzleAttempts = this.db.collection<PuzzleAttemptDoc>('puzzle_attempts');
+    this.puzzleRatings = this.db.collection<PuzzleRatingDoc>('puzzle_ratings');
   }
 
   async onModuleInit() {
@@ -28,6 +34,12 @@ export class Collections implements OnModuleInit {
       { key: { 'black.userId': 1 } },
       { key: { 'opening.eco': 1 } },
       { key: { type: 1, finishedAt: -1 } },
+    ]);
+    await this.puzzles.createIndexes([{ key: { rating: 1 } }, { key: { themes: 1, rating: 1 } }]);
+    await this.puzzleAttempts.createIndexes([
+      // Histórico do jogador e "já fez este problema?".
+      { key: { userId: 1, at: -1 } },
+      { key: { userId: 1, puzzleId: 1 } },
     ]);
     this.logger.log('Índices garantidos');
   }

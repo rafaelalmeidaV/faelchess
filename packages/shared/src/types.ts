@@ -236,3 +236,44 @@ export interface OnlinePublicState {
   termination: Termination;
   drawOffer?: Color;
 }
+
+/** Problema importado do banco do Lichess (CC0), coleção `puzzles`. */
+export interface PuzzleDoc {
+  /** Id do Lichess (ex.: "00sHx"). */
+  _id: string;
+  /** Posição ANTES do lance do adversário. */
+  fen: string;
+  /** Lances em UCI: o 1º é do adversário; os seguintes alternam você / adversário. */
+  moves: string[];
+  rating: number;
+  themes: string[];
+  popularity: number;
+  plays: number;
+  gameUrl: string;
+  openingTags?: string[];
+}
+
+/** Tentativa de um jogador num problema, coleção `puzzle_attempts`. */
+export interface PuzzleAttemptDoc {
+  _id?: unknown;
+  userId: string;
+  puzzleId: string;
+  /** Acertou de primeira (sem nenhum lance errado). */
+  win: boolean;
+  puzzleRating: number;
+  themes: string[];
+  ratingBefore: number;
+  ratingAfter: number;
+  at: Date;
+}
+
+/** Rating de problemas do jogador, coleção `puzzle_ratings` (_id = userId). */
+export interface PuzzleRatingDoc {
+  _id: string;
+  rating: number;
+  /** Desvio (Glicko): começa alto e cai com o número de tentativas. */
+  rd: number;
+  attempts: number;
+  wins: number;
+  updatedAt: Date;
+}

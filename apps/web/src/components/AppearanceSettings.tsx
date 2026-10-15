@@ -1,4 +1,4 @@
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Volume2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { css, cx } from 'styled-system/css';
 import { Box, Flex, Grid, Stack } from 'styled-system/jsx';
@@ -12,9 +12,18 @@ import {
   saveAppearance,
   type Appearance,
 } from '../lib/appearance';
+import { playSound, type SoundKind } from '../lib/sound';
 import { Board } from './Board';
 import { FieldLabel, Muted, Panel } from './kit';
 import { Button, Checkbox, Heading, Link } from './ui';
+
+/** Amostra dos sons: lance, lance, captura e fim de jogo. */
+const SAMPLE: [SoundKind, number][] = [
+  ['move', 0],
+  ['move', 500],
+  ['capture', 1000],
+  ['end', 1600],
+];
 
 /** Posição de exemplo da prévia: depois de 1.e4 e5 2.Nf3 Nc6 3.Bb5 (Espanhola). */
 const PREVIEW_FEN = 'r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3';
@@ -139,6 +148,12 @@ export function AppearanceSettings() {
             <Check checked={a.dests} onChange={(v) => set({ dests: v })}>
               Pontos dos lances legais
             </Check>
+            <Check checked={a.sound} onChange={(v) => set({ sound: v })}>
+              Sons das peças
+            </Check>
+            <Button type="button" variant="plain" size="xs" onClick={() => SAMPLE.forEach(([k, ms]) => setTimeout(() => playSound(k, true), ms))}>
+              <Volume2 /> Ouvir
+            </Button>
           </Flex>
 
           <Stack gap="2.5">

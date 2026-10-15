@@ -1,4 +1,4 @@
-import type { CreateGameInput, GameDoc, GameAnalysisSummary, Jsonified, OpeningInfo } from '@faelchess/shared';
+import type { CreateGameInput, GameDoc, GameAnalysisSummary, Jsonified, OpeningInfo, PuzzleDoc } from '@faelchess/shared';
 import { getAccessKey } from './profile';
 
 export type Game = Jsonified<GameDoc>;
@@ -11,6 +11,17 @@ export interface GameSummary
   opening?: OpeningInfo;
   analysis?: Pick<Jsonified<GameAnalysisSummary>, 'accuracy' | 'counts'>;
   plyCount: number;
+}
+
+export type Puzzle = PuzzleDoc;
+
+export interface PuzzleStats {
+  rating: number;
+  rd: number;
+  attempts: number;
+  wins: number;
+  recent: { puzzleId: string; win: boolean; puzzleRating: number; ratingAfter: number; at: string }[];
+  themes: { theme: string; attempts: number; wins: number }[];
 }
 
 export class ApiError extends Error {
@@ -54,4 +65,13 @@ export const api = {
   deleteGame: (id: string) => request<{ ok: true }>(`/games/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   queue: () => request<Record<string, number>>('/games/queue'),
   health: () => request<{ ok: boolean }>('/health'),
+  nextPuzzle: (userId: string, theme?: string) =>
+    request<Puzzle>(`/puzzles/next?${new URLSearchParams({ userId, ...(theme ? { theme } : {}) })}`),
+  getPuzzle: (id: string) => request<Puzzle>(`/puzzles/${encodeURIComponent(id)}`),
+  puzzleAttempt: (id: string, userId: string, win: boolean) =>
+    request<{ rating: number; delta: number; counted: boolean }>(`/puzzles/${encodeURIComponent(id)}/attempt`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, win }),
+    }),
+  puzzleStats: (userId: string) => request<PuzzleStats>(`/puzzles/stats?${new URLSearchParams({ userId })}`),
 };

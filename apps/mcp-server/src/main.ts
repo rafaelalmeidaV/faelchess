@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CLASSIFICATIONS, type GameDoc, type PositionDoc } from '@faelchess/shared';
+import { CLASSIFICATIONS, type GameDoc, type PositionDoc, type PuzzleAttemptDoc, type PuzzleRatingDoc } from '@faelchess/shared';
 import { MongoClient } from 'mongodb';
 import { z } from 'zod';
 import {
@@ -9,6 +9,7 @@ import {
   getBlunderPatterns,
   getGame,
   getPositionAnalysis,
+  getPuzzleStats,
   getStatsByOpening,
   getWorstMoves,
   listGames,
@@ -28,6 +29,8 @@ const mongo = client.db(process.env.MONGODB_DB ?? 'faelchess');
 const db: Db = {
   games: mongo.collection<GameDoc>('games'),
   positions: mongo.collection<PositionDoc>('positions'),
+  puzzleAttempts: mongo.collection<PuzzleAttemptDoc>('puzzle_attempts'),
+  puzzleRatings: mongo.collection<PuzzleRatingDoc>('puzzle_ratings'),
 };
 
 const filterShape = {
@@ -152,6 +155,21 @@ server.registerTool(
     annotations: { readOnlyHint: true },
   },
   async ({ fen }) => json(await getPositionAnalysis(db, fen)),
+);
+
+server.registerTool(
+  'get_puzzle_stats',
+  {
+    title: 'Problemas (puzzles)',
+    description:
+      'Rating de problemas do jogador, aproveitamento por tema (temas do Lichess, piores primeiro) e evolução por semana. Útil para achar fraquezas táticas.',
+    inputSchema: {
+      userId: z.string().optional().describe(`Id do jogador (padrão: ${DEFAULT_USER})`),
+      minAttempts: z.number().int().min(1).optional().describe('Mínimo de tentativas para um tema aparecer (padrão 3)'),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ userId, minAttempts }) => json(await getPuzzleStats(db, userId ?? DEFAULT_USER, minAttempts)),
 );
 
 async function main() {

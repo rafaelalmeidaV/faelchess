@@ -5,10 +5,11 @@ import { AccessKeyGuard } from './common/access-key.guard';
 import { DatabaseModule } from './database/database.module';
 import { GamesModule } from './games/games.module';
 import { OnlineModule } from './online/online.module';
+import { PuzzlesModule } from './puzzles/puzzles.module';
 import { HealthController } from './health.controller';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, GamesModule, OnlineModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, GamesModule, OnlineModule, PuzzlesModule],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: AccessKeyGuard }],
 })

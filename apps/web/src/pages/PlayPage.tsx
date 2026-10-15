@@ -11,18 +11,23 @@ import { GameLayout } from '../components/GameLayout';
 import { Muted, Panel, ToggleSwitch } from '../components/kit';
 import { MoveFeedback, San } from '../components/MoveFeedback';
 import { MoveList } from '../components/MoveList';
+import { MoveNav } from '../components/MoveNav';
 import { Badge, Button, Checkbox, Heading, Text } from '../components/ui';
 import { BrowserEngine, levelFor } from '../lib/engine';
 import type { Profile } from '../lib/profile';
 import { navigate, type Route } from '../lib/router';
 import { TAG_PT, badgeSvg } from '../lib/labels';
 import { TRAINING_KEY, TRAINING_ONLY_MINE_KEY, useStoredFlag } from '../lib/storedFlag';
+import { capturedFor, materialFromFen } from '../lib/material';
 import { saveGame } from '../lib/unsent';
 import { useLocalGame, type LocalGameConfig } from '../lib/useLocalGame';
+import { useMoveBrowser } from '../lib/useMoveBrowser';
+import { useMoveSound } from '../lib/useMoveSound';
 import { useTrainingReview } from '../lib/useTrainingReview';
 import { TIME_CONTROLS, parseTimeControl } from './HomePage';
 
 const toBoard = (c: Color): BoardColor => (c === 'w' ? 'white' : 'black');
+const NO_SHAPES: DrawShape[] = [];
 
 /** "10+5 · rápida" a partir do controle de tempo em ms. */
 export function tcLabel(tc?: { baseMs: number; incrementMs: number }) {
@@ -106,6 +111,9 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
   const [training, setTraining] = useStoredFlag(TRAINING_KEY, false);
   const [onlyMine, setOnlyMine] = useStoredFlag(TRAINING_ONLY_MINE_KEY, true);
   const review = useTrainingReview(training, game.startFen, game.moves);
+  // Rever lances anteriores sem sair da partida (← → ou clicando na lista).
+  const browser = useMoveBrowser(game.startFen, game.moves);
+  useMoveSound(game.moves, browser.index, game.status === 'over');
   const firstColor = useMemo(() => new Chess(game.startFen).turn(), [game.startFen]);
   const colorOfMove = (i: number): Color => (i % 2 === 0 ? firstColor : firstColor === 'w' ? 'b' : 'w');
   // Contra o bot, por padrão só mostra os seus lances (ver o "??" do bot entregaria a tática).
@@ -202,27 +210,32 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
   const over = game.status === 'over';
   const savedOk = saved?.id || saved?.queued || saved?.error;
 
+  // Material da posição na tela (ao rever um lance, mostra o placar daquele momento).
+  const material = materialFromFen(browser.live ? game.fen : browser.viewFen);
+
   const board = (
     <>
       <Clock
         name={nameOf(top)}
         sub={subOf(top)}
+        captured={capturedFor(material, top)}
         avatar={isBot && top === botColor ? <Bot /> : undefined}
         ms={game.remaining(top)}
         active={game.status === 'playing' && game.turn === top}
       />
       <Board
-        fen={game.fen}
+        fen={browser.live ? game.fen : browser.viewFen}
         orientation={orientation}
-        movable={movable}
-        lastMove={game.lastMove}
-        check={game.inCheck}
-        shapes={shapes}
+        movable={browser.live ? movable : undefined}
+        lastMove={browser.live ? game.lastMove : browser.viewLastMove}
+        check={browser.live ? game.inCheck : browser.viewCheck}
+        shapes={browser.live ? shapes : NO_SHAPES}
         onMove={(uci) => game.makeMove(uci)}
       />
       <Clock
         name={nameOf(bottom)}
         sub={subOf(bottom)}
+        captured={capturedFor(material, bottom)}
         avatar={isBot && bottom === botColor ? <Bot /> : undefined}
         ms={game.remaining(bottom)}
         active={game.status === 'playing' && game.turn === bottom}
@@ -288,7 +301,8 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
           )}
         </HStack>
         <Divider />
-        <MoveList moves={moveItems} current={game.moves.length - 1} maxH={{ base: '40', lg: '72' }} />
+        <MoveNav browser={browser} />
+        <MoveList moves={moveItems} current={browser.index} onSelect={browser.go} maxH={{ base: '40', lg: '72' }} />
       </Panel>
 
       {training && feedbackMove && (

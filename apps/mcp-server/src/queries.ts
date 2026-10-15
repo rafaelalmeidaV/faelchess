@@ -11,13 +11,14 @@ import {
   type GameDoc,
   type MoveRecord,
   type Phase,
-  type PositionDoc,
-} from '@faelchess/shared';
+  type PositionDoc, type PuzzleAttemptDoc, type PuzzleRatingDoc } from '@faelchess/shared';
 import type { Collection, Filter } from 'mongodb';
 
 export interface Db {
   games: Collection<GameDoc>;
   positions: Collection<PositionDoc>;
+  puzzleAttempts: Collection<PuzzleAttemptDoc>;
+  puzzleRatings: Collection<PuzzleRatingDoc>;
 }
 
 export interface GameFilters {
@@ -425,5 +426,50 @@ export async function getPositionAnalysis(db: Db, fen: string) {
       eval: formatEval(l.eval),
       line: uciLineToSan(fen, l.pv, 10).join(' '),
     })),
+  };
+}
+
+/** Rating de problemas, evolução e aproveitamento por tema (os piores primeiro). */
+export async function getPuzzleStats(db: Db, userId: string, minAttempts = 3) {
+  const [rating, byTheme, byWeek] = await Promise.all([
+    db.puzzleRatings.findOne({ _id: userId }),
+    db.puzzleAttempts
+      .aggregate<{ theme: string; attempts: number; wins: number }>([
+        { $match: { userId } },
+        { $unwind: '$themes' },
+        { $group: { _id: '$themes', attempts: { $sum: 1 }, wins: { $sum: { $cond: ['$win', 1, 0] } } } },
+        { $match: { attempts: { $gte: minAttempts } } },
+        { $project: { _id: 0, theme: '$_id', attempts: 1, wins: 1 } },
+      ])
+      .toArray(),
+    db.puzzleAttempts
+      .aggregate<{ week: string; attempts: number; wins: number; lastRating: number }>([
+        { $match: { userId } },
+        { $sort: { at: 1 } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%G-W%V', date: '$at' } },
+            attempts: { $sum: 1 },
+            wins: { $sum: { $cond: ['$win', 1, 0] } },
+            lastRating: { $last: '$ratingAfter' },
+          },
+        },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, week: '$_id', attempts: 1, wins: 1, lastRating: 1 } },
+      ])
+      .toArray(),
+  ]);
+  if (!rating) return { userId, message: 'Nenhum problema resolvido ainda.' };
+  const themes = byTheme
+    .map((t) => ({ ...t, winRate: Math.round((t.wins / t.attempts) * 1000) / 10 }))
+    .sort((a, b) => a.winRate - b.winRate);
+  return {
+    userId,
+    rating: rating.rating,
+    rd: rating.rd,
+    attempts: rating.attempts,
+    winRate: rating.attempts ? Math.round((rating.wins / rating.attempts) * 1000) / 10 : null,
+    themesWorstFirst: themes,
+    byWeek,
   };
 }

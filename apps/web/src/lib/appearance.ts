@@ -14,6 +14,8 @@ export interface Appearance {
   coords: boolean;
   /** Pontinhos dos lances legais ao selecionar uma peça. */
   dests: boolean;
+  /** Sons de lance, captura, xeque e fim de jogo. */
+  sound: boolean;
 }
 
 export const BOARD_PRESETS: { id: string; name: string; light: string; dark: string; highlight: string }[] = [
@@ -47,6 +49,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   pieces: 'cburnett',
   coords: true,
   dests: true,
+  sound: true,
 };
 
 const KEY = 'faelchess:appearance';

@@ -1,7 +1,10 @@
 import { Chess } from 'chess.js';
 import { describe, expect, it } from 'vitest';
 import {
+  PUZZLE_START_RATING,
+  PUZZLE_START_RD,
   START_FEN,
+  glickoUpdate,
   boardOutcome,
   buildMoveRecords,
   classifyMove,
@@ -242,5 +245,25 @@ describe('ideias do Lichess', () => {
     expect(phaseAt(div, 0)).toBe('opening');
     expect(phaseAt(div, 1)).toBe('middlegame');
     expect(divideGame(['8/5k2/8/8/8/8/3K4/R7 w - - 0 60'])).toEqual({ middle: undefined, end: 0 });
+  });
+});
+
+describe('glickoUpdate', () => {
+  it('acertar sobe, errar desce; contra problema mais difícil o ganho é maior', () => {
+    const p = { rating: PUZZLE_START_RATING, rd: PUZZLE_START_RD };
+    const winEasy = glickoUpdate(p, 1200, true);
+    const winHard = glickoUpdate(p, 1800, true);
+    const lossEasy = glickoUpdate(p, 1200, false);
+    expect(winEasy.rating).toBeGreaterThan(1500);
+    expect(winHard.rating - 1500).toBeGreaterThan(winEasy.rating - 1500);
+    expect(lossEasy.rating).toBeLessThan(1500);
+    expect(winEasy.rd).toBeLessThan(PUZZLE_START_RD);
+  });
+
+  it('com desvio pequeno o rating se mexe pouco e o desvio não cai abaixo do mínimo', () => {
+    const settled = glickoUpdate({ rating: 1500, rd: 60 }, 1500, true);
+    expect(settled.rating - 1500).toBeGreaterThan(3);
+    expect(settled.rating - 1500).toBeLessThan(15);
+    expect(settled.rd).toBe(60);
   });
 });

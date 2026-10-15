@@ -1,4 +1,4 @@
-import { Crown, History, Swords, UserRound } from 'lucide-react';
+import { Crown, History, Puzzle, Swords, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Box, Container, HStack } from 'styled-system/jsx';
 import { hstack } from 'styled-system/patterns';
@@ -8,6 +8,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { HomePage } from './pages/HomePage';
 import { OnlinePage } from './pages/OnlinePage';
 import { PlayPage } from './pages/PlayPage';
+import { PuzzlePage } from './pages/PuzzlePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { getProfile, type Profile } from './lib/profile';
 import { useRoute } from './lib/router';
@@ -43,6 +44,7 @@ export function App() {
   else if (section === 'play') page = <PlayPage key={window.location.hash} route={route} profile={profile} />;
   else if (section === 'game' && id) page = <GamePage key={id} id={id} profile={profile} />;
   else if (section === 'online' && id) page = <OnlinePage key={id} gameId={id} profile={profile} />;
+  else if (section === 'puzzles') page = <PuzzlePage key={id ?? 'next'} profile={profile} route={route} />;
   else if (section === 'history') page = <HistoryPage profile={profile} />;
   else if (section === 'settings') page = <SettingsPage profile={profile} onSaved={setProfile} />;
   else page = <HomePage profile={profile} />;
@@ -61,6 +63,9 @@ export function App() {
             <HStack as="nav" gap="1">
               <NavLink href="#/" active={!section || section === 'play' || section === 'online'} icon={<Swords />}>
                 Jogar
+              </NavLink>
+              <NavLink href="#/puzzles" active={section === 'puzzles'} icon={<Puzzle />}>
+                Problemas
               </NavLink>
               <NavLink href="#/history" active={section === 'history' || section === 'game'} icon={<History />}>
                 Partidas

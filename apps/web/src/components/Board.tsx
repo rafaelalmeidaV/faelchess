@@ -21,6 +21,8 @@ interface Props {
   shapes?: DrawShape[];
   /** Recebe o lance em UCI (com promoção, se houver). */
   onMove?: (uci: string) => void;
+  /** Mudar este número redesenha a posição `fen` (desfaz um lance recusado, ex.: errado no problema). */
+  syncKey?: number;
 }
 
 /** Lances legais no formato do chessground. */
@@ -36,7 +38,7 @@ function legalDests(chess: Chess): Map<Key, Key[]> {
 const PROMO_PIECES = ['q', 'r', 'b', 'n'] as const;
 const PIECE_NAMES = { q: 'queen', r: 'rook', b: 'bishop', n: 'knight' } as const;
 
-export function Board({ fen, orientation, movable, lastMove, check, shapes, onMove }: Props) {
+export function Board({ fen, orientation, movable, lastMove, check, shapes, onMove, syncKey }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const cg = useRef<Api | null>(null);
   const onMoveRef = useRef(onMove);
@@ -89,7 +91,7 @@ export function Board({ fen, orientation, movable, lastMove, check, shapes, onMo
       },
     };
     cg.current?.set(config);
-  }, [fen, orientation, movable, lastMoveKey, check]);
+  }, [fen, orientation, movable, lastMoveKey, check, syncKey]);
 
   useEffect(() => {
     cg.current?.setAutoShapes(shapes ?? []);

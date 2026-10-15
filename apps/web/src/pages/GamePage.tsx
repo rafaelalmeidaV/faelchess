@@ -21,6 +21,8 @@ import { MoveFeedback, San } from '../components/MoveFeedback';
 import { MoveList } from '../components/MoveList';
 import { Alert, Badge, Button, Checkbox, Heading, IconButton, Spinner, Table, Text, toaster } from '../components/ui';
 import { api, type Game } from '../lib/api';
+import { capturedFor, materialFromFen } from '../lib/material';
+import { useMoveSound } from '../lib/useMoveSound';
 import type { Profile } from '../lib/profile';
 import { navigate } from '../lib/router';
 import { resultText } from './PlayPage';
@@ -87,6 +89,7 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [n]);
 
+  useMoveSound(moves, index);
   const move = index >= 0 ? moves[index] : undefined;
   const startFen = game?.startFen ?? START_FEN;
   const fen = move ? move.fenAfter : startFen;
@@ -154,14 +157,18 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
     </HStack>
   );
 
+  const material = materialFromFen(fen);
+  const topColor = orientation === 'white' ? 'b' : 'w';
+  const bottomColor = orientation === 'white' ? 'w' : 'b';
+
   const board = (
     <>
-      <Clock name={orientation === 'white' ? game.black.name : game.white.name} active={false} />
+      <Clock name={orientation === 'white' ? game.black.name : game.white.name} active={false} captured={capturedFor(material, topColor)} />
       <HStack gap="2" alignItems="stretch">
         <EvalBar value={status === 'done' ? evalNow : undefined} orientation={orientation} />
         <Board fen={fen} orientation={orientation} lastMove={move ? [move.uci.slice(0, 2), move.uci.slice(2, 4)] : undefined} shapes={shapes} />
       </HStack>
-      <Clock name={orientation === 'white' ? game.white.name : game.black.name} active={false} />
+      <Clock name={orientation === 'white' ? game.white.name : game.black.name} active={false} captured={capturedFor(material, bottomColor)} />
       <Box hideFrom="lg">{navButtons}</Box>
     </>
   );

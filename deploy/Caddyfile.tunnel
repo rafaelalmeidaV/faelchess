@@ -1,0 +1,23 @@
+# /etc/caddy/Caddyfile na VM Oracle.
+# Variante para Cloudflare Tunnel: HTTP simples em :8080, o TLS fica com a Cloudflare.
+:8080 {
+	encode zstd gzip
+
+	# API REST e WebSocket (Socket.IO) vão para o NestJS, que só escuta em localhost.
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3000
+	}
+	handle /socket.io/* {
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	# O resto é o front estático (saída de `npm run build -w @faelchess/web`).
+	handle {
+		root * /var/www/faelchess
+		file_server
+	}
+
+	# Cache longo para os assets com hash e para o Stockfish WASM.
+	@assets path /assets/* /engine/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+}

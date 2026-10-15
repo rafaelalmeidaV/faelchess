@@ -1,0 +1,21 @@
+# /etc/systemd/system/faelchess-worker.service no PC de casa (Linux).
+[Unit]
+Description=faelchess analysis worker (Stockfish)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bruno
+WorkingDirectory=/opt/faelchess/apps/analysis-worker
+EnvironmentFile=/opt/faelchess/apps/analysis-worker/.env
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=10
+# Prioridade mínima de CPU: o PC continua usável enquanto analisa.
+Nice=19
+# Descomente para limitar a meio core (só se for rodar numa máquina apertada).
+# CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

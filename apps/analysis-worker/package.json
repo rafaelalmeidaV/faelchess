@@ -1,0 +1,21 @@
+{
+  "name": "@faelchess/analysis-worker",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env dist/main.js",
+    "dev": "tsc -p tsconfig.json && node --env-file-if-exists=.env dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@faelchess/shared": "*",
+    "chess.js": "^1.4.0",
+    "mongodb": "^7.7.0"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.4"
+  }
+}

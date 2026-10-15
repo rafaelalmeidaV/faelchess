@@ -1,0 +1,22 @@
+# /etc/systemd/system/faelchess-api.service na VM Oracle.
+[Unit]
+Description=faelchess API (NestJS + Socket.IO)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/faelchess/apps/api
+EnvironmentFile=/opt/faelchess/apps/api/.env
+# Limita o heap do Node: a VM tem 1 GB e divide com o TeamSpeak.
+Environment=NODE_OPTIONS=--max-old-space-size=192
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=10
+# O TeamSpeak é sensível a latência: a API fica com prioridade menor e teto de memória.
+Nice=5
+MemoryMax=350M
+
+[Install]
+WantedBy=multi-user.target

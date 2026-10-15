@@ -1,0 +1,17 @@
+# Serviço systemd DE USUÁRIO (não precisa de sudo): ~/.config/systemd/user/faelchess-worker.service
+# Para continuar rodando sem ninguém logado: `sudo loginctl enable-linger $USER` (uma vez só).
+[Unit]
+Description=faelchess analysis worker (Stockfish)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/faelchess/apps/analysis-worker
+ExecStart=/usr/bin/node --env-file=.env dist/main.js
+Restart=always
+RestartSec=15
+# Prioridade mínima de CPU: a máquina continua usável enquanto analisa.
+Nice=19
+
+[Install]
+WantedBy=default.target

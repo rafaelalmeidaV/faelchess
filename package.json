@@ -1,0 +1,27 @@
+{
+  "name": "faelchess",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @faelchess/shared && npm run build -w @faelchess/api -w @faelchess/analysis-worker -w @faelchess/mcp-server -w @faelchess/web",
+    "build:shared": "npm run build -w @faelchess/shared",
+    "test": "npm test -w @faelchess/shared -w @faelchess/analysis-worker",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:api": "npm run start:dev -w @faelchess/api",
+    "dev:web": "npm run dev -w @faelchess/web",
+    "dev:worker": "npm run dev -w @faelchess/analysis-worker",
+    "openings:fetch": "node scripts/fetch-openings.mjs",
+    "dev:mongo": "node scripts/dev-mongo.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "mongodb-memory-server": "^10.4.3",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage/
+.devdata/
+apps/web/public/engine/
+deploy/deploy.env
+*.log
+.DS_Store
+.vscode/
+.idea/

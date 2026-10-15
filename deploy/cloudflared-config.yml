@@ -1,0 +1,10 @@
+# Alternativa ao Caddy + portas abertas: Cloudflare Tunnel (a VM só faz conexão de saída).
+# ~/.cloudflared/config.yml na VM. O Caddy escuta em :8080 sem TLS
+# (deploy/Caddyfile.tunnel); o WebSocket passa pelo tunnel normalmente.
+tunnel: faelchess
+credentials-file: /home/ubuntu/.cloudflared/<ID-DO-TUNNEL>.json
+
+ingress:
+  - hostname: chess.seudominio.com
+    service: http://127.0.0.1:8080
+  - service: http_status:404

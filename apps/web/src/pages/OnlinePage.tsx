@@ -1,13 +1,18 @@
 import { Chess } from 'chess.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { parseUci, type Color, type OnlinePublicState } from '@faelchess/shared';
+import { Check, Copy, Eye, Flag, Handshake, Swords } from 'lucide-react';
+import { Divider, Flex, HStack, Stack } from 'styled-system/jsx';
 import { Board, type BoardColor } from '../components/Board';
 import { Clock } from '../components/Clock';
+import { GameLayout } from '../components/GameLayout';
+import { Muted, Panel } from '../components/kit';
 import { MoveList } from '../components/MoveList';
+import { Alert, Badge, Button, Clipboard, Heading, Input, Spinner, Text } from '../components/ui';
 import { fetchOnlineState, getSocket, joinOnlineGame } from '../lib/online';
 import { getOnlineToken, type Profile } from '../lib/profile';
 import { navigate } from '../lib/router';
-import { resultText } from './PlayPage';
+import { resultText, tcLabel } from './PlayPage';
 
 const toBoard = (c: Color): BoardColor => (c === 'w' ? 'white' : 'black');
 
@@ -17,7 +22,6 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
   const [gone, setGone] = useState(false);
   const [error, setError] = useState('');
   const [joining, setJoining] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [tick, setTick] = useState(0);
   const receivedAt = useRef(performance.now());
   const [token, setToken] = useState(() => getOnlineToken(gameId));
@@ -110,8 +114,12 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
     }
   };
 
-  if (gone) return <div className="card muted">Partida encerrada. Abrindo a análise…</div>;
-  if (!state) return <div className="card muted">Conectando…</div>;
+  if (gone || !state)
+    return (
+      <HStack gap="2" color="fg.muted">
+        <Spinner size="sm" /> {gone ? 'Partida encerrada. Abrindo a análise…' : 'Conectando…'}
+      </HStack>
+    );
 
   const fen = pending?.fen ?? state.fen;
   const turn = new Chess(fen).turn();
@@ -119,104 +127,153 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
   const top: Color = orientation === 'white' ? 'b' : 'w';
   const bottom: Color = top === 'w' ? 'b' : 'w';
   const seat = (c: Color) => (c === 'w' ? state.white : state.black);
-  const seatName = (c: Color) => {
+  const seatName = (c: Color) => seat(c)?.name ?? 'aguardando…';
+  const seatSub = (c: Color) => {
     const s = seat(c);
-    if (!s) return 'aguardando…';
-    return `${s.name}${s.connected ? '' : ' (desconectado)'}`;
+    if (!s) return 'lugar livre';
+    const who = c === myColor ? 'Você' : 'Adversário';
+    return `${who} · ${c === 'w' ? 'brancas' : 'pretas'}${s.connected ? '' : ' · desconectado'}`;
   };
   const lastUci = pending?.uci ?? state.moves.at(-1)?.uci;
   const link = `${window.location.origin}/#/online/${gameId}`;
   const canPlay = state.status === 'playing' && myColor !== null && !pending;
   const freeSeat = state.status === 'waiting' && !myColor;
+  const tc = tcLabel(state.timeControl);
 
-  return (
-    <div className="play">
-      <div className="board-col">
-        <Clock name={seatName(top)} ms={remaining(top)} active={state.status === 'playing' && turn === top} />
-        <Board
-          fen={fen}
-          orientation={orientation}
-          movable={canPlay ? toBoard(myColor!) : undefined}
-          lastMove={lastUci ? [lastUci.slice(0, 2), lastUci.slice(2, 4)] : undefined}
-          check={new Chess(fen).inCheck()}
-          onMove={onMove}
-        />
-        <Clock name={seatName(bottom)} ms={remaining(bottom)} active={state.status === 'playing' && turn === bottom} />
-      </div>
-
-      <aside className="side">
-        {state.status === 'waiting' && myColor && (
-          <div className="card">
-            <h3>Convite criado</h3>
-            <p className="muted small">Mande este link para o adversário. A partida começa quando ele entrar.</p>
-            <div className="invite">
-              <input readOnly value={link} onFocus={(e) => e.target.select()} />
-              <button
-                onClick={() => {
-                  void navigator.clipboard.writeText(link);
-                  setCopied(true);
-                }}
-              >
-                {copied ? 'Copiado' : 'Copiar'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {freeSeat && (
-          <div className="card">
-            <h3>{(state.white ?? state.black)?.name} te convidou</h3>
-            <p className="muted small">
-              {state.timeControl.baseMs / 60000}+{state.timeControl.incrementMs / 1000} · você joga como {profile.name}
-            </p>
-            <button className="primary" onClick={join} disabled={joining}>
-              {joining ? 'Entrando…' : 'Aceitar e jogar'}
-            </button>
-          </div>
-        )}
-
-        <div className="card">
-          <div className="muted small">
-            Online · {state.timeControl.baseMs / 60000}+{state.timeControl.incrementMs / 1000}
-            {!myColor && state.status !== 'waiting' && ' · assistindo'}
-          </div>
-          <MoveList moves={state.moves} current={state.moves.length - 1} />
-          {error && <p className="error small">{error}</p>}
-
-          {state.status === 'playing' && myColor && (
-            <>
-              {state.drawOffer && state.drawOffer !== myColor && (
-                <div className="draw-offer">
-                  Adversário oferece empate
-                  <button onClick={() => emit('draw:answer', { accept: true })}>Aceitar</button>
-                  <button onClick={() => emit('draw:answer', { accept: false })}>Recusar</button>
-                </div>
-              )}
-              <div className="actions">
-                <button disabled={state.drawOffer === myColor} onClick={() => emit('draw:offer')}>
-                  {state.drawOffer === myColor ? 'Empate oferecido' : 'Oferecer empate'}
-                </button>
-                <button className="danger" onClick={() => confirm('Desistir da partida?') && emit('game:resign')}>
-                  Desistir
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {state.status === 'over' && (
-          <div className="card result-card">
-            <h3>{resultText(state.result, state.termination, state.white?.name ?? '?', state.black?.name ?? '?')}</h3>
-            <p className="muted">Partida salva e na fila de análise.</p>
-            <div className="actions">
-              <button className="primary" onClick={() => navigate(`/game/${gameId}`)}>
-                Ver análise
-              </button>
-              <button onClick={() => navigate('/')}>Início</button>
-            </div>
-          </div>
-        )}
-      </aside>
-    </div>
+  const board = (
+    <>
+      <Clock name={seatName(top)} sub={seatSub(top)} ms={remaining(top)} active={state.status === 'playing' && turn === top} />
+      <Board
+        fen={fen}
+        orientation={orientation}
+        movable={canPlay ? toBoard(myColor!) : undefined}
+        lastMove={lastUci ? [lastUci.slice(0, 2), lastUci.slice(2, 4)] : undefined}
+        check={new Chess(fen).inCheck()}
+        onMove={onMove}
+      />
+      <Clock name={seatName(bottom)} sub={seatSub(bottom)} ms={remaining(bottom)} active={state.status === 'playing' && turn === bottom} />
+    </>
   );
+
+  const side = (
+    <>
+      {state.status === 'waiting' && myColor && (
+        <Panel gap="4" borderColor="jade.7">
+          <HStack gap="3">
+            <Spinner size="sm" colorPalette="jade" />
+            <Stack gap="0">
+              <Heading as="h3" textStyle="md">
+                Aguardando o adversário
+              </Heading>
+              <Muted>Mande este link. A partida começa quando ele entrar.</Muted>
+            </Stack>
+          </HStack>
+          <Clipboard.Root value={link}>
+            <Clipboard.Control>
+              <Clipboard.Input asChild>
+                <Input size="sm" readOnly onFocus={(e) => e.target.select()} />
+              </Clipboard.Input>
+              <Clipboard.Trigger asChild>
+                <Button colorPalette="jade" size="sm">
+                  <Clipboard.Indicator copied={<Check />}>
+                    <Copy />
+                  </Clipboard.Indicator>
+                  <Clipboard.CopyText>Copiar</Clipboard.CopyText>
+                </Button>
+              </Clipboard.Trigger>
+            </Clipboard.Control>
+          </Clipboard.Root>
+        </Panel>
+      )}
+
+      {freeSeat && (
+        <Panel gap="3" borderColor="jade.7">
+          <Heading as="h3" textStyle="lg">
+            {(state.white ?? state.black)?.name} te convidou
+          </Heading>
+          <Muted>
+            {tc} · você joga como {profile.name}
+          </Muted>
+          <Button colorPalette="jade" size="lg" onClick={join} loading={joining} loadingText="Entrando…">
+            <Swords /> Aceitar e jogar
+          </Button>
+        </Panel>
+      )}
+
+      {state.status === 'over' && (
+        <Panel gap="3" borderColor="jade.7">
+          <Heading as="h3" textStyle="lg">
+            {resultText(state.result, state.termination, state.white?.name ?? '?', state.black?.name ?? '?')}
+          </Heading>
+          <Muted>Partida salva e na fila de análise.</Muted>
+          <Flex gap="2" flexWrap="wrap">
+            <Button colorPalette="jade" onClick={() => navigate(`/game/${gameId}`)}>
+              Ver análise
+            </Button>
+            <Button variant="surface" onClick={() => navigate('/')}>
+              Início
+            </Button>
+          </Flex>
+        </Panel>
+      )}
+
+      <Panel p="0" gap="0">
+        <HStack justify="space-between" px="4" py="3" gap="3">
+          <Stack gap="0">
+            <Heading as="h3" textStyle="md">
+              Partida online
+            </Heading>
+            <Text textStyle="xs" color="fg.muted">
+              {tc}
+            </Text>
+          </Stack>
+          {!myColor && state.status !== 'waiting' && (
+            <Badge size="lg" borderRadius="full">
+              <Eye /> Assistindo
+            </Badge>
+          )}
+        </HStack>
+        <Divider />
+        <MoveList moves={state.moves} current={state.moves.length - 1} maxH={{ base: '40', lg: '72' }} />
+      </Panel>
+
+      {error && (
+        <Alert.Root colorPalette="red" variant="subtle">
+          <Alert.Content>
+            <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      )}
+
+      {state.status === 'playing' && myColor && (
+        <>
+          {state.drawOffer && state.drawOffer !== myColor && (
+            <Panel flexDirection="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" py="3" gap="3">
+              <HStack gap="2">
+                <Handshake size={18} /> <Text fontWeight="semibold">Adversário oferece empate</Text>
+              </HStack>
+              <Flex gap="2">
+                <Button size="sm" colorPalette="jade" onClick={() => emit('draw:answer', { accept: true })}>
+                  Aceitar
+                </Button>
+                <Button size="sm" variant="surface" onClick={() => emit('draw:answer', { accept: false })}>
+                  Recusar
+                </Button>
+              </Flex>
+            </Panel>
+          )}
+          <Flex justify="space-between" gap="2" flexWrap="wrap">
+            <Button variant="surface" size="sm" disabled={state.drawOffer === myColor} onClick={() => emit('draw:offer')}>
+              <Handshake /> {state.drawOffer === myColor ? 'Empate oferecido' : 'Oferecer empate'}
+            </Button>
+            <Button variant="surface" colorPalette="red" size="sm" onClick={() => confirm('Desistir da partida?') && emit('game:resign')}>
+              <Flag /> Desistir
+            </Button>
+          </Flex>
+        </>
+      )}
+    </>
+  );
+
+  return <GameLayout board={board} side={side} />;
 }

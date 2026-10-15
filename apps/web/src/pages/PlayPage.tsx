@@ -1,41 +1,48 @@
 import { Chess } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
+import { Bot, Flag, GraduationCap, Handshake, Repeat2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CLASSIFICATION_LABELS_PT, CLASSIFICATION_SYMBOLS, type Color, type PlayerInfo } from '@faelchess/shared';
+import { type Color, type PlayerInfo } from '@faelchess/shared';
+import { Divider, Flex, HStack, Stack } from 'styled-system/jsx';
 import { Board, type BoardColor } from '../components/Board';
 import { Clock } from '../components/Clock';
+import { GameLayout } from '../components/GameLayout';
+import { Muted, Panel, ToggleSwitch } from '../components/kit';
+import { MoveFeedback, San } from '../components/MoveFeedback';
 import { MoveList } from '../components/MoveList';
+import { Badge, Button, Checkbox, Heading, Text } from '../components/ui';
 import { BrowserEngine, levelFor } from '../lib/engine';
 import type { Profile } from '../lib/profile';
 import { navigate, type Route } from '../lib/router';
 import { TAG_PT, badgeSvg } from '../lib/labels';
+import { TRAINING_KEY, TRAINING_ONLY_MINE_KEY, useStoredFlag } from '../lib/storedFlag';
 import { saveGame } from '../lib/unsent';
 import { useLocalGame, type LocalGameConfig } from '../lib/useLocalGame';
 import { useTrainingReview } from '../lib/useTrainingReview';
-import { parseTimeControl } from './HomePage';
+import { TIME_CONTROLS, parseTimeControl } from './HomePage';
 
 const toBoard = (c: Color): BoardColor => (c === 'w' ? 'white' : 'black');
 
-/** Preferência simples guardada no navegador (o storage pode estar bloqueado: aí só não lembra). */
-function useStoredFlag(key: string, initial: boolean) {
-  const [value, setValue] = useState(() => {
-    try {
-      const v = localStorage.getItem(key);
-      return v === null ? initial : v === '1';
-    } catch {
-      return initial;
-    }
-  });
-  const update = (v: boolean) => {
-    setValue(v);
-    try {
-      localStorage.setItem(key, v ? '1' : '0');
-    } catch {
-      /* ok */
-    }
-  };
-  return [value, update] as const;
+/** "10+5 · rápida" a partir do controle de tempo em ms. */
+export function tcLabel(tc?: { baseMs: number; incrementMs: number }) {
+  if (!tc) return 'Sem relógio';
+  const id = `${tc.baseMs / 1000}+${tc.incrementMs / 1000}`;
+  const known = TIME_CONTROLS.find((t) => t.id === id);
+  return known?.label ?? `${tc.baseMs / 60000}+${tc.incrementMs / 1000}`;
+}
+
+/** Caixa de seleção pequena (Park UI). */
+function SmallCheck({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
+  return (
+    <Checkbox.Root size="sm" colorPalette="jade" checked={checked} onCheckedChange={(d) => onChange(d.checked === true)}>
+      <Checkbox.HiddenInput />
+      <Checkbox.Control>
+        <Checkbox.Indicator />
+      </Checkbox.Control>
+      <Checkbox.Label textStyle="sm">{children}</Checkbox.Label>
+    </Checkbox.Root>
+  );
 }
 
 export const TERMINATION_PT: Record<string, string> = {
@@ -96,8 +103,8 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
   const engineRef = useRef<BrowserEngine | null>(null);
 
   // Modo treino: classifica cada lance na hora (só bot e local; o online nem tem essa opção).
-  const [training, setTraining] = useStoredFlag('faelchess:training', false);
-  const [onlyMine, setOnlyMine] = useStoredFlag('faelchess:trainingOnlyMine', true);
+  const [training, setTraining] = useStoredFlag(TRAINING_KEY, false);
+  const [onlyMine, setOnlyMine] = useStoredFlag(TRAINING_ONLY_MINE_KEY, true);
   const review = useTrainingReview(training, game.startFen, game.moves);
   const firstColor = useMemo(() => new Chess(game.startFen).turn(), [game.startFen]);
   const colorOfMove = (i: number): Color => (i % 2 === 0 ? firstColor : firstColor === 'w' ? 'b' : 'w');
@@ -186,130 +193,172 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
     // colorOfMove só depende de firstColor, que é fixo na partida.
   }, [feedback, feedbackMove, game.fen, lastVisible]);
 
-  return (
-    <div className="play">
-      <div className="board-col">
-        <Clock name={nameOf(top) + (thinking && top === botColor ? ' · pensando…' : '')} ms={game.remaining(top)} active={game.status === 'playing' && game.turn === top} />
-        <Board
-          fen={game.fen}
-          orientation={orientation}
-          movable={movable}
-          lastMove={game.lastMove}
-          check={game.inCheck}
-          shapes={shapes}
-          onMove={(uci) => game.makeMove(uci)}
-        />
-        <Clock name={nameOf(bottom)} ms={game.remaining(bottom)} active={game.status === 'playing' && game.turn === bottom} />
-      </div>
+  const subOf = (c: Color) => {
+    if (isBot && c === botColor) return thinking ? 'pensando…' : `Bot · ${level?.label}`;
+    if (c === me) return `Você · ${c === 'w' ? 'brancas' : 'pretas'}`;
+    return c === 'w' ? 'Brancas' : 'Pretas';
+  };
+  const visibleTags = feedback?.tags.filter((t) => t !== 'check') ?? [];
+  const over = game.status === 'over';
+  const savedOk = saved?.id || saved?.queued || saved?.error;
 
-      <aside className="side">
-        <div className="card">
-          <div className="muted small">
-            {isBot ? `Contra Stockfish ${level?.elo}` : 'Partida local'}
-            {config.timeControl
-              ? ` · ${config.timeControl.baseMs / 60000}+${config.timeControl.incrementMs / 1000}`
-              : ' · sem relógio'}
-          </div>
-          <MoveList moves={moveItems} current={game.moves.length - 1} />
-          <div className="training-toggle">
-            <label className="inline small">
-              <input type="checkbox" checked={training} onChange={(e) => setTraining(e.target.checked)} /> Modo treino
-            </label>
-            {training && isBot && (
-              <label className="inline small">
-                <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /> só os meus lances
-              </label>
-            )}
-          </div>
-          <div className="actions">
-            <button onClick={() => { setAutoFlip(false); setOrientation((o) => (o === 'white' ? 'black' : 'white')); }}>
-              Virar
-            </button>
-            {game.status === 'playing' && (
-              <>
-                {isBot ? (
-                  <button className="danger" onClick={() => confirm('Desistir da partida?') && game.resign(myColor!)}>
-                    Desistir
-                  </button>
-                ) : (
-                  <>
-                    <button onClick={() => confirm('Os dois concordam com o empate?') && game.agreeDraw()}>Empate</button>
-                    <button className="danger" onClick={() => confirm(`${nameOf(game.turn)} desiste?`) && game.resign(game.turn)}>
-                      Desistir ({nameOf(game.turn)})
-                    </button>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {training && feedbackMove && (
-          <div className="card move-detail">
-            {feedback ? (
-              <>
-                <div className="move-headline">
-                  <span className={`badge cls-bg-${feedback.classification}`}>
-                    {CLASSIFICATION_SYMBOLS[feedback.classification] || (feedback.classification === 'excellent' ? '✓' : '•')}
-                  </span>
-                  <strong>
-                    {Math.ceil((lastVisible + 1) / 2)}
-                    {colorOfMove(lastVisible) === 'w' ? '.' : '...'} {feedbackMove.san}
-                  </strong>{' '}
-                  é {CLASSIFICATION_LABELS_PT[feedback.classification].toLowerCase()}
-                </div>
-                {!['best', 'great', 'brilliant'].includes(feedback.classification) && (
-                  <div>
-                    Melhor era <strong>{feedback.bestMoveSan}</strong>
-                    <span className="muted small"> · perdeu {feedback.winPctLoss}% de chance de vitória</span>
-                  </div>
-                )}
-                {feedback.tags.filter((t) => t !== 'check').length > 0 && (
-                  <div className="tags">
-                    {feedback.tags
-                      .filter((t) => t !== 'check')
-                      .map((t) => (
-                        <span key={t} className="tag">
-                          {TAG_PT[t] ?? t}
-                        </span>
-                      ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="muted small">Avaliando {feedbackMove.san}…</div>
-            )}
-          </div>
-        )}
-
-        {game.status === 'over' && (
-          <div className="card result-card">
-            <h3>{resultText(game.result, game.termination, config.white.name, config.black.name)}</h3>
-            {!saved || (!saved.id && !saved.queued && !saved.error) ? (
-              <p className="muted">Salvando…</p>
-            ) : saved.error ? (
-              <p className="error">Não foi possível salvar: {saved.error}</p>
-            ) : saved.queued ? (
-              <p className="muted">Servidor indisponível: a partida ficou guardada no navegador e será enviada depois.</p>
-            ) : (
-              <p className="muted">Partida salva e na fila de análise.</p>
-            )}
-            <div className="actions">
-              {saved?.id && (
-                <button className="primary" onClick={() => navigate(`/game/${saved.id}`)}>
-                  Ver análise
-                </button>
-              )}
-              <button onClick={() => navigate('/')}>Nova partida</button>
-              {isBot && (
-                <button onClick={() => navigate(`/play/bot?elo=${level?.elo}&color=${me === 'w' ? 'b' : 'w'}&tc=${route.query.get('tc') ?? 'none'}&r=${Date.now()}`)}>
-                  Revanche
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </aside>
-    </div>
+  const board = (
+    <>
+      <Clock
+        name={nameOf(top)}
+        sub={subOf(top)}
+        avatar={isBot && top === botColor ? <Bot /> : undefined}
+        ms={game.remaining(top)}
+        active={game.status === 'playing' && game.turn === top}
+      />
+      <Board
+        fen={game.fen}
+        orientation={orientation}
+        movable={movable}
+        lastMove={game.lastMove}
+        check={game.inCheck}
+        shapes={shapes}
+        onMove={(uci) => game.makeMove(uci)}
+      />
+      <Clock
+        name={nameOf(bottom)}
+        sub={subOf(bottom)}
+        avatar={isBot && bottom === botColor ? <Bot /> : undefined}
+        ms={game.remaining(bottom)}
+        active={game.status === 'playing' && game.turn === bottom}
+      />
+    </>
   );
+
+  const side = (
+    <>
+      {over && (
+        <Panel borderColor="jade.7" gap="3">
+          <Heading as="h3" textStyle="lg">
+            {resultText(game.result, game.termination, config.white.name, config.black.name)}
+          </Heading>
+          {!savedOk ? (
+            <Muted>Salvando…</Muted>
+          ) : saved?.error ? (
+            <Text textStyle="sm" color="error">
+              Não foi possível salvar: {saved.error}
+            </Text>
+          ) : saved?.queued ? (
+            <Muted>Servidor indisponível: a partida ficou guardada no navegador e será enviada depois.</Muted>
+          ) : (
+            <Muted>Partida salva e na fila de análise.</Muted>
+          )}
+          <Flex gap="2" flexWrap="wrap">
+            {saved?.id && (
+              <Button colorPalette="jade" onClick={() => navigate(`/game/${saved.id}`)}>
+                Ver análise
+              </Button>
+            )}
+            <Button variant="surface" onClick={() => navigate('/')}>
+              Nova partida
+            </Button>
+            {isBot && (
+              <Button
+                variant="surface"
+                onClick={() =>
+                  navigate(`/play/bot?elo=${level?.elo}&color=${me === 'w' ? 'b' : 'w'}&tc=${route.query.get('tc') ?? 'none'}&r=${Date.now()}`)
+                }
+              >
+                <Repeat2 /> Revanche
+              </Button>
+            )}
+          </Flex>
+        </Panel>
+      )}
+
+      <Panel p="0" gap="0">
+        <HStack justify="space-between" px="4" py="3" gap="3">
+          <Stack gap="0" minW="0">
+            <Heading as="h3" textStyle="md" truncate>
+              {isBot ? `Contra Stockfish ${level?.elo}` : 'Partida local'}
+            </Heading>
+            <Text textStyle="xs" color="fg.muted">
+              {tcLabel(config.timeControl)}
+            </Text>
+          </Stack>
+          {training && (
+            <Badge colorPalette="jade" size="lg" borderRadius="full" flexShrink="0">
+              <GraduationCap /> Modo treino
+            </Badge>
+          )}
+        </HStack>
+        <Divider />
+        <MoveList moves={moveItems} current={game.moves.length - 1} maxH={{ base: '40', lg: '72' }} />
+      </Panel>
+
+      {training && feedbackMove && (
+        feedback ? (
+          <MoveFeedback
+            cls={feedback.classification}
+            title={`${Math.ceil((lastVisible + 1) / 2)}${colorOfMove(lastVisible) === 'w' ? '.' : '...'} ${feedbackMove.san}`}
+            best={
+              <>
+                Melhor era <San>{feedback.bestMoveSan}</San> · perdeu {feedback.winPctLoss}% de chance de vitória
+              </>
+            }
+            tags={visibleTags.map((t) => TAG_PT[t] ?? t)}
+          />
+        ) : (
+          <Panel py="3">
+            <Muted>Avaliando {feedbackMove.san}…</Muted>
+          </Panel>
+        )
+      )}
+
+      <Flex justify="space-between" gap="2" flexWrap="wrap">
+        <Flex gap="2">
+          <Button
+            variant="surface"
+            size="sm"
+            onClick={() => {
+              setAutoFlip(false);
+              setOrientation((o) => (o === 'white' ? 'black' : 'white'));
+            }}
+          >
+            <Repeat2 /> Virar
+          </Button>
+          {game.status === 'playing' && !isBot && (
+            <Button variant="surface" size="sm" onClick={() => confirm('Os dois concordam com o empate?') && game.agreeDraw()}>
+              <Handshake /> Empate
+            </Button>
+          )}
+        </Flex>
+        {game.status === 'playing' && (
+          <Button
+            variant="surface"
+            colorPalette="red"
+            size="sm"
+            onClick={() =>
+              isBot
+                ? confirm('Desistir da partida?') && game.resign(myColor!)
+                : confirm(`${nameOf(game.turn)} desiste?`) && game.resign(game.turn)
+            }
+          >
+            <Flag /> Desistir{!isBot && ` (${nameOf(game.turn)})`}
+          </Button>
+        )}
+      </Flex>
+
+      <Panel flexDirection="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" py="3" gap="3">
+        <ToggleSwitch
+          checked={training}
+          onChange={setTraining}
+          label="Modo treino"
+          hint={isBot && onlyMine ? 'Só os seus lances são classificados' : 'Classifica cada lance na hora'}
+        />
+        {training && isBot && (
+          <SmallCheck checked={onlyMine} onChange={setOnlyMine}>
+            Só os meus
+          </SmallCheck>
+        )}
+      </Panel>
+    </>
+  );
+
+  return <GameLayout board={board} side={side} />;
 }

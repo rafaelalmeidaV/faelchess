@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
@@ -9,10 +13,24 @@
     "skipLibCheck": true,
     "noEmit": true,
     "isolatedModules": true,
-    "types": ["vite/client"],
+    "types": [
+      "vite/client"
+    ],
     "paths": {
-      "@faelchess/shared": ["../../packages/shared/src/index.ts"]
-    }
+      "~/*": [
+        "./src/*"
+      ],
+      "styled-system/*": [
+        "./styled-system/*"
+      ],
+      "@faelchess/shared": [
+        "../../packages/shared/src/index.ts"
+      ]
+    },
+    "baseUrl": "."
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "styled-system"
+  ]
 }

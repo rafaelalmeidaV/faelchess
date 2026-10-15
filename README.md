@@ -213,10 +213,16 @@ Este comando compila o MCP server:
 npm run build:shared && npm run build -w @faelchess/mcp-server
 ```
 
-Este comando registra o servidor no Claude Code (troque o caminho e a string de conexão):
+Este comando cria o `.env` do MCP a partir do exemplo, para você preencher a string do Atlas e o seu `FAELCHESS_USER_ID` (o "Id do jogador" das Configurações do site):
 
 ```bash
-claude mcp add faelchess -e MONGODB_URI="mongodb+srv://..." -e FAELCHESS_USER_ID=bruno -- node /caminho/para/faelchess/apps/mcp-server/dist/main.js
+cp apps/mcp-server/.env.example apps/mcp-server/.env && nano apps/mcp-server/.env
+```
+
+Este comando registra o servidor no Claude Code para todos os seus projetos; a senha fica só no `.env`, não na configuração do Claude (troque o caminho):
+
+```bash
+claude mcp add --scope user faelchess -- node --env-file=/caminho/para/faelchess/apps/mcp-server/.env /caminho/para/faelchess/apps/mcp-server/dist/main.js
 ```
 
 No Claude Desktop, o equivalente vai no `claude_desktop_config.json`:
@@ -226,8 +232,7 @@ No Claude Desktop, o equivalente vai no `claude_desktop_config.json`:
   "mcpServers": {
     "faelchess": {
       "command": "node",
-      "args": ["/caminho/para/faelchess/apps/mcp-server/dist/main.js"],
-      "env": { "MONGODB_URI": "mongodb+srv://...", "FAELCHESS_USER_ID": "bruno" }
+      "args": ["--env-file=/caminho/para/faelchess/apps/mcp-server/.env", "/caminho/para/faelchess/apps/mcp-server/dist/main.js"]
     }
   }
 }
@@ -272,6 +277,10 @@ Reescritas em TypeScript, não copiadas (o lila é AGPL):
 - **Regras de mate** (MateAdvice), descritas acima.
 
 Uso pessoal não tem problema de licença. Se um dia for distribuir, revise o AGPL (lila) e o GPL (Stockfish).
+
+### Peças e tabuleiro
+
+Os 12 conjuntos de peças em `apps/web/public/pieces/` vêm do Lichess, sem alteração. Cada um mantém a licença do autor (GPLv2+, CC BY-NC-SA 4.0, Apache 2.0 ou MIT); a lista com autores está em [`apps/web/public/pieces/CREDITS.md`](apps/web/public/pieces/CREDITS.md). Os conjuntos CC BY-NC-SA não podem ser usados comercialmente. As cores do tabuleiro são geradas em CSS (`apps/web/src/lib/appearance.ts`), sem imagens.
 
 ## Decisões que diferem do handoff
 

@@ -12,3 +12,7 @@ deploy/deploy.env
 .DS_Store
 .vscode/
 .idea/
+plumb-screenshots/
+
+# Panda
+styled-system

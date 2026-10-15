@@ -1,0 +1,3 @@
+/* Camadas do Panda CSS (Park UI). O resto do CSS do app (styles.css) fica fora das camadas
+   e por isso ganha de qualquer estilo do Panda até a migração terminar. */
+@layer reset, base, tokens, recipes, utilities;

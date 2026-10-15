@@ -1,4 +1,8 @@
+import { Crown, History, Swords, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Box, Container, HStack } from 'styled-system/jsx';
+import { hstack } from 'styled-system/patterns';
+import { Alert, Button, Toaster } from './components/ui';
 import { GamePage } from './pages/GamePage';
 import { HistoryPage } from './pages/HistoryPage';
 import { HomePage } from './pages/HomePage';
@@ -8,6 +12,19 @@ import { SettingsPage } from './pages/SettingsPage';
 import { getProfile, type Profile } from './lib/profile';
 import { useRoute } from './lib/router';
 import { flushUnsent, unsentCount } from './lib/unsent';
+
+function NavLink({ href, active, icon, children }: { href: string; active: boolean; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Button asChild variant={active ? 'subtle' : 'plain'} size="sm" color={active ? 'fg.default' : 'fg.muted'}>
+      <a href={href} aria-current={active ? 'page' : undefined}>
+        {icon}
+        <Box as="span" display={{ base: 'none', sm: 'inline' }}>
+          {children}
+        </Box>
+      </a>
+    </Button>
+  );
+}
 
 export function App() {
   const route = useRoute();
@@ -32,20 +49,42 @@ export function App() {
 
   return (
     <>
-      <header className="topbar">
-        <a href="#/" className="logo">faelchess</a>
-        <nav>
-          <a href="#/" className={!section ? 'active' : ''}>Jogar</a>
-          <a href="#/history" className={section === 'history' || section === 'game' ? 'active' : ''}>Partidas</a>
-          <a href="#/settings" className={section === 'settings' ? 'active' : ''}>{profile?.name ?? 'Perfil'}</a>
-        </nav>
-      </header>
+      <Box as="header" borderBottomWidth="1px" bg="gray.2" position="sticky" top="0" zIndex="sticky">
+        <Container maxW="8xl" px={{ base: '3', md: '6' }}>
+          <HStack h="14" justify="space-between">
+            <a href="#/" className={hstack({ gap: '2', fontWeight: 'bold', textStyle: 'lg', letterSpacing: 'tight' })}>
+              <Box color="jade.9" display="flex">
+                <Crown size={20} />
+              </Box>
+              faelchess
+            </a>
+            <HStack as="nav" gap="1">
+              <NavLink href="#/" active={!section || section === 'play' || section === 'online'} icon={<Swords />}>
+                Jogar
+              </NavLink>
+              <NavLink href="#/history" active={section === 'history' || section === 'game'} icon={<History />}>
+                Partidas
+              </NavLink>
+              <NavLink href="#/settings" active={section === 'settings'} icon={<UserRound />}>
+                {profile?.name ?? 'Perfil'}
+              </NavLink>
+            </HStack>
+          </HStack>
+        </Container>
+      </Box>
       {notice && (
-        <div className="notice" onClick={() => setNotice('')}>
-          {notice}
-        </div>
+        <Container maxW="8xl" pt="4" px={{ base: '3', md: '6' }}>
+          <Alert.Root colorPalette="jade" variant="subtle" onClick={() => setNotice('')} cursor="pointer">
+            <Alert.Content>
+              <Alert.Description>{notice}</Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
+        </Container>
       )}
-      <main>{page}</main>
+      <Container as="main" maxW="8xl" pt={{ base: '3', md: '4' }} pb={{ base: '6', md: '8' }} px={{ base: '3', md: '6' }}>
+        {page}
+      </Container>
+      <Toaster />
     </>
   );
 }

@@ -1,7 +1,6 @@
 import {
   CLASSIFICATIONS,
   CLASSIFICATION_LABELS_PT,
-  CLASSIFICATION_SYMBOLS,
   START_FEN,
   formatEval,
   uciLineToSan,
@@ -10,10 +9,17 @@ import {
 } from '@faelchess/shared';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, RefreshCw, Repeat2, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Box, Divider, Flex, Grid, HStack } from 'styled-system/jsx';
 import { Board, type BoardColor } from '../components/Board';
+import { Clock } from '../components/Clock';
 import { EvalGraph } from '../components/EvalGraph';
+import { GameLayout } from '../components/GameLayout';
+import { Muted, Panel } from '../components/kit';
+import { MoveFeedback, San } from '../components/MoveFeedback';
 import { MoveList } from '../components/MoveList';
+import { Alert, Badge, Button, Checkbox, Heading, IconButton, Spinner, Table, Text, toaster } from '../components/ui';
 import { api, type Game } from '../lib/api';
 import type { Profile } from '../lib/profile';
 import { navigate } from '../lib/router';
@@ -95,8 +101,20 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
     return out;
   }, [move, showBest]);
 
-  if (error) return <div className="card error">{error}</div>;
-  if (!game) return <div className="muted">Carregando…</div>;
+  if (error)
+    return (
+      <Alert.Root colorPalette="red" variant="subtle">
+        <Alert.Content>
+          <Alert.Description>{error}</Alert.Description>
+        </Alert.Content>
+      </Alert.Root>
+    );
+  if (!game)
+    return (
+      <HStack gap="2" color="fg.muted">
+        <Spinner size="sm" /> Carregando…
+      </HStack>
+    );
 
   const analysis = game.analysis;
   const status = game.analysisStatus;
@@ -106,163 +124,228 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
     { side: 'white' as const, p: game.white },
     { side: 'black' as const, p: game.black },
   ];
+  const STATUS = {
+    pending: { label: 'Na fila', palette: 'gray' },
+    processing: { label: 'Analisando', palette: 'gray' },
+    done: { label: 'Analisada', palette: 'jade' },
+    failed: { label: 'Falhou', palette: 'red' },
+  } as const;
+  const shortName = (p: { name: string; userId?: string }) => (p.userId === profile.userId ? 'Você' : p.name);
+  const num = (v: number | null | undefined) => (typeof v === 'number' ? v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '–');
+  const cell = { textAlign: 'center', w: '16', px: '1' } as const;
 
-  return (
-    <div className="play analysis">
-      <div className="board-col">
-        <div className="player-bar">
-          <span className="player-name">{orientation === 'white' ? game.black.name : game.white.name}</span>
-        </div>
-        <div className="board-with-bar">
-          <EvalBar value={status === 'done' ? evalNow : undefined} orientation={orientation} />
-          <Board fen={fen} orientation={orientation} lastMove={move ? [move.uci.slice(0, 2), move.uci.slice(2, 4)] : undefined} shapes={shapes} />
-        </div>
-        <div className="player-bar">
-          <span className="player-name">{orientation === 'white' ? game.white.name : game.black.name}</span>
-        </div>
-        <div className="nav-buttons">
-          <button onClick={() => setIndex(-1)} title="Início (Home)">«</button>
-          <button onClick={() => setIndex((i) => Math.max(-1, i - 1))} title="Anterior (←)">‹</button>
-          <button onClick={() => setIndex((i) => Math.min(n - 1, i + 1))} title="Próximo (→)">›</button>
-          <button onClick={() => setIndex(n - 1)} title="Fim (End)">»</button>
-          <button onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} title="Virar (f)">Virar</button>
-        </div>
-      </div>
+  const navButtons = (
+    <HStack gap="2" justify="center" flexWrap="wrap">
+      <IconButton variant="surface" aria-label="Início" title="Início (Home)" onClick={() => setIndex(-1)}>
+        <ChevronsLeft />
+      </IconButton>
+      <IconButton variant="surface" aria-label="Anterior" title="Anterior (←)" onClick={() => setIndex((i) => Math.max(-1, i - 1))}>
+        <ChevronLeft />
+      </IconButton>
+      <IconButton variant="surface" aria-label="Próximo" title="Próximo (→)" onClick={() => setIndex((i) => Math.min(n - 1, i + 1))}>
+        <ChevronRight />
+      </IconButton>
+      <IconButton variant="surface" aria-label="Fim" title="Fim (End)" onClick={() => setIndex(n - 1)}>
+        <ChevronsRight />
+      </IconButton>
+      <Button variant="surface" title="Virar (f)" onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))}>
+        <Repeat2 /> Virar
+      </Button>
+    </HStack>
+  );
 
-      <aside className="side">
-        <div className="card">
-          <h3 className="result-line">{resultText(game.result, game.termination, game.white.name, game.black.name)}</h3>
-          <div className="muted small">
-            {new Date(game.finishedAt).toLocaleString('pt-BR')}
-            {game.opening && ` · ${game.opening.eco} ${game.opening.name}`}
-          </div>
-          {status !== 'done' && (
-            <p className={status === 'failed' ? 'error' : 'muted'}>
-              {status === 'pending' && 'Na fila de análise… (o worker em casa precisa estar ligado)'}
-              {status === 'processing' && 'Analisando com o Stockfish…'}
-              {status === 'failed' && `A análise falhou: ${game.analysisError ?? 'erro desconhecido'}`}
-            </p>
-          )}
-        </div>
+  const board = (
+    <>
+      <Clock name={orientation === 'white' ? game.black.name : game.white.name} active={false} />
+      <HStack gap="2" alignItems="stretch">
+        <EvalBar value={status === 'done' ? evalNow : undefined} orientation={orientation} />
+        <Board fen={fen} orientation={orientation} lastMove={move ? [move.uci.slice(0, 2), move.uci.slice(2, 4)] : undefined} shapes={shapes} />
+      </HStack>
+      <Clock name={orientation === 'white' ? game.white.name : game.black.name} active={false} />
+      <Box hideFrom="lg">{navButtons}</Box>
+    </>
+  );
 
+  const side = (
+    <>
+      <Panel gap="1.5">
+        <HStack justify="space-between" alignItems="flex-start" gap="3">
+          <Heading as="h2" textStyle={{ base: 'lg', md: 'xl' }}>
+            {resultText(game.result, game.termination, game.white.name, game.black.name)}
+          </Heading>
+          <Badge colorPalette={STATUS[status].palette} size="lg" borderRadius="full" flexShrink="0">
+            {status === 'processing' && <Spinner size="xs" />}
+            {STATUS[status].label}
+          </Badge>
+        </HStack>
+        <Muted>
+          {new Date(game.finishedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+          {game.opening && ` · ${game.opening.eco} ${game.opening.name}`} · {Math.ceil(n / 2)} lances
+        </Muted>
+        {status !== 'done' && (
+          <Text textStyle="sm" color={status === 'failed' ? 'error' : 'fg.muted'} mt="1">
+            {status === 'pending' && 'Na fila de análise… (o worker em casa precisa estar ligado)'}
+            {status === 'processing' && 'Analisando com o Stockfish…'}
+            {status === 'failed' && `A análise falhou: ${game.analysisError ?? 'erro desconhecido'}`}
+          </Text>
+        )}
+      </Panel>
+
+      <Grid gridTemplateColumns={{ base: '1fr', md: analysis ? 'repeat(2, minmax(0, 1fr))' : '1fr' }} gap="4" alignItems="start">
         {analysis && (
-          <div className="card">
-            <table className="summary">
-              <thead>
-                <tr>
-                  <th />
+          <Panel gap="0" px="4" py="3">
+            <Table.Root variant="plain" css={{ '& td, & th': { py: '1', px: '1' } }}>
+              <Table.Head>
+                <Table.Row>
+                  <Table.Header />
                   {players.map(({ side, p }) => (
-                    <th key={side}>{p.name}</th>
+                    <Table.Header key={side} {...cell} color="fg.default" fontWeight="bold" textStyle="xs" truncate maxW="16">
+                      {shortName(p)}
+                    </Table.Header>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="acc-row">
-                  <td>Precisão</td>
+                </Table.Row>
+              </Table.Head>
+              <Table.Body>
+                <Table.Row>
+                  <Table.Cell fontWeight="semibold">Precisão</Table.Cell>
                   {players.map(({ side }) => (
-                    <td key={side}>{analysis.accuracy[side] ?? '–'}</td>
+                    <Table.Cell key={side} {...cell} textStyle="xl" fontWeight="bold">
+                      {num(analysis.accuracy[side])}
+                    </Table.Cell>
                   ))}
-                </tr>
+                </Table.Row>
                 {(['opening', 'middlegame', 'endgame'] as const).map((ph) => (
-                  <tr key={ph} className="phase-row">
-                    <td>{PHASE_PT[ph]}</td>
+                  <Table.Row key={ph} color="fg.muted">
+                    <Table.Cell textStyle="xs">{PHASE_PT[ph]}</Table.Cell>
                     {players.map(({ side }) => (
-                      <td key={side}>{analysis.phaseAccuracy?.[ph]?.[side] ?? '–'}</td>
+                      <Table.Cell key={side} {...cell} textStyle="xs">
+                        {num(analysis.phaseAccuracy?.[ph]?.[side])}
+                      </Table.Cell>
                     ))}
-                  </tr>
+                  </Table.Row>
                 ))}
-                {CLASSIFICATIONS.map((c) => (
-                  <tr key={c}>
-                    <td>
-                      <span className={`chip cls-bg-${c}`} />
-                      {CLASSIFICATION_LABELS_PT[c]}
-                    </td>
+                {CLASSIFICATIONS.map((c, i) => (
+                  <Table.Row key={c} borderTopWidth={i === 0 ? '1px' : undefined}>
+                    <Table.Cell>
+                      <HStack gap="0">
+                        <span className={`chip cls-bg-${c}`} />
+                        {CLASSIFICATION_LABELS_PT[c]}
+                      </HStack>
+                    </Table.Cell>
                     {players.map(({ side }) => (
-                      <td key={side}>{analysis.counts[side][c]}</td>
+                      <Table.Cell key={side} {...cell} fontWeight="semibold" color={analysis.counts[side][c] ? 'fg.default' : 'fg.subtle'}>
+                        {analysis.counts[side][c]}
+                      </Table.Cell>
                     ))}
-                  </tr>
+                  </Table.Row>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </Table.Body>
+            </Table.Root>
+          </Panel>
         )}
 
-        {move?.classification && (
-          <div className="card move-detail">
-            <div className="move-headline">
-              <span className={`badge cls-bg-${move.classification}`}>{CLASSIFICATION_SYMBOLS[move.classification] || (move.classification === 'excellent' ? '✓' : '•')}</span>
-              <strong>
-                {Math.ceil(move.ply / 2)}
-                {move.color === 'w' ? '.' : '...'} {move.san}
-              </strong>{' '}
-              é {CLASSIFICATION_LABELS_PT[move.classification].toLowerCase()}
-              <span className="muted"> · {formatEval(move.evalAfter)}</span>
-            </div>
-            {!['best', 'great', 'brilliant'].includes(move.classification) && move.bestMoveSan && (
-              <div>
-                Melhor era <strong>{move.bestMoveSan}</strong> ({formatEval(move.bestEval)}):{' '}
-                <span className="muted">{uciLineToSan(move.fenBefore, move.bestLine ?? [], 8).join(' ')}</span>
-              </div>
-            )}
-            <div className="muted small">
-              Perda de {move.winPctLoss}% de chance de vitória · precisão {move.accuracy}
-              {move.phase && ` · ${PHASE_PT[move.phase]}`}
-              {move.timeSpentMs !== undefined && ` · ${(move.timeSpentMs / 1000).toFixed(1)} s`}
-            </div>
-            {move.tags && move.tags.length > 0 && (
-              <div className="tags">
-                {move.tags.map((t) => (
-                  <span key={t} className="tag">
-                    {TAG_PT[t] ?? t}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+        {move?.classification ? (
+          <MoveFeedback
+            cls={move.classification}
+            title={`${Math.ceil(move.ply / 2)}${move.color === 'w' ? '.' : '...'} ${move.san}`}
+            subtitle={
+              <>
+                {formatEval(move.evalAfter)} · precisão {move.accuracy}
+                {move.phase && ` · ${PHASE_PT[move.phase]}`}
+                {move.timeSpentMs !== undefined && ` · ${(move.timeSpentMs / 1000).toFixed(1)} s`}
+              </>
+            }
+            best={
+              move.bestMoveSan && (
+                <>
+                  Melhor era <San>{move.bestMoveSan}</San> ({formatEval(move.bestEval)}) · perdeu {move.winPctLoss}%
+                  <Box mt="1" fontFamily="mono" textStyle="xs" color="fg.subtle">
+                    {uciLineToSan(move.fenBefore, move.bestLine ?? [], 8).join(' ')}
+                  </Box>
+                </>
+              )
+            }
+            tags={(move.tags ?? []).map((t) => TAG_PT[t] ?? t)}
+          />
+        ) : (
+          analysis && (
+            <Panel>
+              <Muted>Escolha um lance na lista ou no gráfico para ver a avaliação dele.</Muted>
+            </Panel>
+          )
         )}
+      </Grid>
 
-        <div className="card">
-          {status === 'done' && (
-            <EvalGraph
-              points={moves.map((m) => ({
-                san: m.san,
-                label: `${Math.ceil(m.ply / 2)}${m.color === 'w' ? '.' : '...'} ${m.san}`,
-                eval: m.evalAfter,
-                classification: m.classification,
-              }))}
-              current={index}
-              onSelect={setIndex}
-            />
-          )}
-          <MoveList
-            moves={moves}
+      {status === 'done' && (
+        <Panel gap="2">
+          <HStack justify="space-between">
+            <Muted>Vantagem ao longo da partida</Muted>
+            {move && (
+              <Muted>
+                Lance {Math.ceil(move.ply / 2)} · {formatEval(move.evalAfter)}
+              </Muted>
+            )}
+          </HStack>
+          <EvalGraph
+            points={moves.map((m) => ({
+              san: m.san,
+              label: `${Math.ceil(m.ply / 2)}${m.color === 'w' ? '.' : '...'} ${m.san}`,
+              eval: m.evalAfter,
+              classification: m.classification,
+            }))}
             current={index}
             onSelect={setIndex}
-            startsWithBlack={moves[0]?.color === 'b'}
           />
-          <div className="actions">
-            <label className="inline small">
-              <input type="checkbox" checked={showBest} onChange={(e) => setShowBest(e.target.checked)} /> seta do melhor lance
-            </label>
-          </div>
-          <div className="actions">
-            <button onClick={() => navigator.clipboard.writeText(game.pgn)}>Copiar PGN</button>
+        </Panel>
+      )}
+
+      <Panel p="2" gap="2">
+        <Box hideBelow="lg" pt="1">
+          {navButtons}
+        </Box>
+        <MoveList moves={moves} current={index} onSelect={setIndex} startsWithBlack={moves[0]?.color === 'b'} />
+        <Divider />
+        <Flex gap="2" flexWrap="wrap" align="center" justify="space-between" px="2" pb="1">
+          <Checkbox.Root size="sm" colorPalette="jade" checked={showBest} onCheckedChange={(d) => setShowBest(d.checked === true)}>
+            <Checkbox.HiddenInput />
+            <Checkbox.Control>
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            <Checkbox.Label textStyle="sm">Seta do melhor lance</Checkbox.Label>
+          </Checkbox.Root>
+          <Flex gap="2" flexWrap="wrap">
+            <Button
+              variant="surface"
+              size="sm"
+              onClick={() => {
+                void navigator.clipboard.writeText(game.pgn);
+                toaster.create({ title: 'PGN copiado', type: 'success' });
+              }}
+            >
+              <Copy /> PGN
+            </Button>
             {(status === 'done' || status === 'failed') && (
-              <button onClick={() => api.reanalyze(game._id).then(load)}>Reanalisar</button>
+              <Button variant="surface" size="sm" onClick={() => api.reanalyze(game._id).then(load)}>
+                <RefreshCw /> Reanalisar
+              </Button>
             )}
-            <button
-              className="danger"
+            <Button
+              variant="surface"
+              colorPalette="red"
+              size="sm"
               onClick={async () => {
                 if (!confirm('Apagar esta partida?')) return;
                 await api.deleteGame(game._id);
                 navigate('/history');
               }}
             >
-              Apagar
-            </button>
-          </div>
-        </div>
-      </aside>
-    </div>
+              <Trash2 /> Apagar
+            </Button>
+          </Flex>
+        </Flex>
+      </Panel>
+    </>
   );
+
+  return <GameLayout kind="analysis" board={board} side={side} />;
 }

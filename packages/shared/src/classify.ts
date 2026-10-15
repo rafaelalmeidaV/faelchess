@@ -197,7 +197,6 @@ function materialAlong(fen: string, line: string[], color: Color): number[] {
 export function detectSacrifice(fenBefore: string, playedUci: string, lineAfter: string[]): boolean {
   const chess = new Chess(fenBefore);
   const color = chess.turn();
-  const opp = opposite(color);
   const m0 = materialBalance(chess, color);
   const mv = playUci(chess, playedUci);
   if (!mv) return false;
@@ -216,15 +215,12 @@ export function detectSacrifice(fenBefore: string, playedUci: string, lineAfter:
   const capturedValue = mv.captured ? PIECE_VALUES[mv.captured] : 0;
   if (value - capturedValue < SACRIFICE_MIN_MATERIAL) return false;
 
-  const attackers = chess.attackers(mv.to, opp);
-  if (attackers.length === 0) return false;
+  // Só capturas LEGAIS do adversário: uma peça cravada no rei "ataca" a casa mas não pode capturar,
+  // e o rei não captura peça defendida. (É a vez do adversário depois do nosso lance.)
+  const captures = chess.moves({ verbose: true }).filter((m) => m.to === mv.to);
+  if (captures.length === 0) return false;
   const defended = chess.attackers(mv.to, color).length > 0;
-  const cheapestAttacker = Math.min(
-    ...attackers.map((sq) => {
-      const p = chess.get(sq)!;
-      return p.type === 'k' ? (defended ? Infinity : 0) : PIECE_VALUES[p.type];
-    }),
-  );
+  const cheapestAttacker = Math.min(...captures.map((m) => (m.piece === 'k' ? 0 : PIECE_VALUES[m.piece])));
   return !defended || cheapestAttacker < value;
 }
 

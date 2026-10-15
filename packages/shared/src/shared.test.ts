@@ -131,6 +131,16 @@ describe('classifyMove', () => {
     expect(detectSacrifice(START_FEN, 'e2e4', ['e7e5'])).toBe(false);
   });
 
+  it('peça "atacada" por uma peça cravada não é sacrifício', () => {
+    // Partida real: 9...Be6 deixa o bispo cravado no rei pela Qe2; 10.Nxd5 não oferece nada.
+    const chess = new Chess();
+    for (const san of 'e4 Nc6 Nc3 Nf6 Nf3 d6 e5 Ng8 exd6 exd6 d4 Nf6 Bg5 d5 Bxf6 Qxf6 Qe2+ Be6'.split(' ')) chess.move(san);
+    expect(detectSacrifice(chess.fen(), 'c3d5', ['e8c8'])).toBe(false);
+    // Sem a cravada (dama longe da coluna e), o mesmo cavalo em d5 seria peça oferecida ao bispo.
+    const unpinned = chess.fen().replace('PPP1QPPP', 'PPPQ1PPP');
+    expect(detectSacrifice(unpinned, 'c3d5', ['e6d5'])).toBe(true);
+  });
+
   it('sacrifício bom vira Brilhante', () => {
     const r = classifyMove({
       fenBefore: greek,

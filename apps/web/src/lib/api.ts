@@ -44,7 +44,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const api = {
   createGame: (input: CreateGameInput) =>
     request<{ id: string; analysisStatus: string }>('/games', { method: 'POST', body: JSON.stringify(input) }),
-  listGames: (params: { userId?: string; limit?: number; skip?: number } = {}) => {
+  listGames: (params: { userId?: string; type?: string; limit?: number; skip?: number } = {}) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
     return request<{ items: GameSummary[]; total: number }>(`/games?${q}`);

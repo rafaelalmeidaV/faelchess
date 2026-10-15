@@ -10,6 +10,9 @@ export default defineConfig({
     alias: {
       // O front usa o código-fonte do shared direto (sem build), só a parte que roda no navegador.
       '@faelchess/shared': fileURLToPath(new URL('../../packages/shared/src/index.ts', import.meta.url)),
+      // Aliases do Park UI / Panda CSS (os mesmos do tsconfig).
+      '~': fileURLToPath(new URL('./src', import.meta.url)),
+      'styled-system': fileURLToPath(new URL('./styled-system', import.meta.url)),
     },
   },
   server: {

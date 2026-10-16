@@ -9,8 +9,9 @@ import { GameLayout } from '../components/GameLayout';
 import { ChoiceGroup, Muted, Panel } from '../components/kit';
 import { Alert, Badge, Button, Heading, Link, Spinner, Text } from '../components/ui';
 import { api, type Puzzle, type PuzzleStats } from '../lib/api';
+import { localQuery, localStats, recordLocal } from '../lib/localPuzzles';
 import { capturedFor, materialFromFen } from '../lib/material';
-import type { Profile } from '../lib/profile';
+import { getAccessKey, type Profile } from '../lib/profile';
 import { THEME_FILTERS, themeName } from '../lib/puzzleThemes';
 import type { Route } from '../lib/router';
 import { useMoveSound } from '../lib/useMoveSound';
@@ -54,9 +55,13 @@ export function PuzzlePage({ profile, route }: { profile: Profile; route: Route 
     timers.current = [];
   };
 
+  // Sem a chave, rating e histórico ficam só neste navegador (o servidor não grava nada).
+  const guest = !getAccessKey();
+
   const refreshStats = useCallback(() => {
-    api.puzzleStats(profile.userId).then(setStats).catch(() => {});
-  }, [profile.userId]);
+    if (guest) setStats(localStats());
+    else api.puzzleStats(profile.userId).then(setStats).catch(() => {});
+  }, [guest, profile.userId]);
 
   const start = useCallback((p: Puzzle) => {
     clearTimers();
@@ -75,11 +80,11 @@ export function PuzzlePage({ profile, route }: { profile: Profile; route: Route 
       setError('');
       setPuzzle(null);
       api
-        .nextPuzzle(profile.userId, t || undefined)
+        .nextPuzzle(guest ? { ...localQuery(), theme: t || undefined } : { userId: profile.userId, theme: t || undefined })
         .then(start)
         .catch((e) => setError((e as Error).message));
     },
-    [profile.userId, start, theme],
+    [guest, profile.userId, start, theme],
   );
 
   // Primeiro problema: o do link (#/puzzles/<id>) ou o próximo do sorteio.
@@ -113,6 +118,11 @@ export function PuzzlePage({ profile, route }: { profile: Profile; route: Route 
 
   const record = (win: boolean) => {
     if (!puzzle) return;
+    if (guest) {
+      setResult(recordLocal(puzzle, win));
+      refreshStats();
+      return;
+    }
     api
       .puzzleAttempt(puzzle._id, profile.userId, win)
       .then((r) => {
@@ -238,7 +248,7 @@ export function PuzzlePage({ profile, route }: { profile: Profile; route: Route 
     <>
       <Panel flexDirection="row" alignItems="center" justifyContent="space-between" gap="3">
         <Stack gap="0">
-          <Muted>Seu rating de problemas</Muted>
+          <Muted>{guest ? 'Seu rating (salvo neste navegador)' : 'Seu rating de problemas'}</Muted>
           <HStack gap="2" alignItems="baseline">
             <Text textStyle="3xl" fontWeight="bold" lineHeight="1.1">
               {result?.rating ?? stats?.rating ?? '–'}

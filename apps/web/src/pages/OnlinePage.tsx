@@ -2,14 +2,14 @@ import { Chess } from 'chess.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { START_FEN, parseUci, type Color, type OnlinePublicState } from '@faelchess/shared';
 import { Check, Copy, Eye, Flag, Handshake, Swords } from 'lucide-react';
-import { Divider, Flex, HStack, Stack } from 'styled-system/jsx';
+import { Box, Divider, Flex, HStack, Stack } from 'styled-system/jsx';
 import { Board, type BoardColor } from '../components/Board';
 import { Clock } from '../components/Clock';
 import { GameLayout } from '../components/GameLayout';
 import { Muted, Panel } from '../components/kit';
 import { MoveList } from '../components/MoveList';
 import { MoveNav } from '../components/MoveNav';
-import { Alert, Badge, Button, Clipboard, Heading, Input, Spinner, Text } from '../components/ui';
+import { Alert, Badge, Button, Clipboard, Heading, Input, Spinner, Text, toaster } from '../components/ui';
 import { fetchOnlineState, getSocket, joinOnlineGame } from '../lib/online';
 import { getOnlineToken, type Profile } from '../lib/profile';
 import { capturedFor, materialFromFen } from '../lib/material';
@@ -20,6 +20,17 @@ import { resultText, tcLabel } from './PlayPage';
 
 const toBoard = (c: Color): BoardColor => (c === 'w' ? 'white' : 'black');
 const NO_MOVES: { uci: string; san: string }[] = [];
+
+/** PGN da partida (para quem jogou sem chave poder analisar em outro lugar). */
+function pgnOf(state: OnlinePublicState) {
+  const chess = new Chess(state.startFen);
+  chess.setHeader('Event', 'faelchess online');
+  chess.setHeader('White', state.white?.name ?? '?');
+  chess.setHeader('Black', state.black?.name ?? '?');
+  chess.setHeader('Result', state.result);
+  for (const m of state.moves) chess.move(parseUci(m.uci));
+  return chess.pgn();
+}
 
 export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profile }) {
   const [state, setState] = useState<OnlinePublicState | null>(null);
@@ -68,9 +79,12 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
   // Partida que já saiu da memória do servidor: se foi salva, vai para a análise.
   useEffect(() => {
     if (!gone) return;
+    // Sem análise (sala criada sem chave) não existe página de análise para abrir.
+    if (state && !state.analyzed) return;
     fetchOnlineState(gameId).then((s) => {
       if (!s) navigate(`/game/${gameId}`);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gone, gameId]);
 
   // Relógio local: re-render a cada 100 ms enquanto corre.
@@ -123,6 +137,17 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
     }
   };
 
+  if (gone && state && !state.analyzed)
+    return (
+      <Stack gap="3" maxW="md">
+        <Muted>Esta partida já terminou e não ficou salva (foi criada sem a chave de acesso).</Muted>
+        <Box>
+          <Button variant="surface" onClick={() => navigate('/')}>
+            Início
+          </Button>
+        </Box>
+      </Stack>
+    );
   if (gone || !state)
     return (
       <HStack gap="2" color="fg.muted">
@@ -217,11 +242,27 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
           <Heading as="h3" textStyle="lg">
             {resultText(state.result, state.termination, state.white?.name ?? '?', state.black?.name ?? '?')}
           </Heading>
-          <Muted>Partida salva e na fila de análise.</Muted>
+          <Muted>
+            {state.analyzed
+              ? 'Partida salva e na fila de análise.'
+              : 'Esta sala foi criada sem a chave de acesso, então a partida não é salva nem analisada. Copie o PGN para analisar onde quiser.'}
+          </Muted>
           <Flex gap="2" flexWrap="wrap">
-            <Button colorPalette="jade" onClick={() => navigate(`/game/${gameId}`)}>
-              Ver análise
-            </Button>
+            {state.analyzed ? (
+              <Button colorPalette="jade" onClick={() => navigate(`/game/${gameId}`)}>
+                Ver análise
+              </Button>
+            ) : (
+              <Button
+                colorPalette="jade"
+                onClick={() => {
+                  void navigator.clipboard.writeText(pgnOf(state));
+                  toaster.create({ title: 'PGN copiado', type: 'success' });
+                }}
+              >
+                <Copy /> Copiar PGN
+              </Button>
+            )}
             <Button variant="surface" onClick={() => navigate('/')}>
               Início
             </Button>

@@ -36,7 +36,11 @@ export class PuzzlesService {
       .sort({ at: -1 })
       .limit(RECENT_EXCLUDE)
       .toArray();
-    const exclude = done.map((a) => a.puzzleId);
+    return this.nextFor(rating, done.map((a) => a.puzzleId), theme);
+  }
+
+  /** Sorteio perto de `rating`, fora de `exclude` (também usado por quem não tem a chave). */
+  async nextFor(rating: number, exclude: string[], theme?: string): Promise<PuzzleDoc> {
     for (const width of [75, 150, 300, 600, 3000]) {
       const [puzzle] = await this.db.puzzles
         .aggregate<PuzzleDoc>([

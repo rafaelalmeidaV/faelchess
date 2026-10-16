@@ -8,6 +8,14 @@ const PUBLIC_KEY = 'faelchess:public';
 /** Rota liberada sem ACCESS_KEY (ex.: entrar numa partida online pelo link). */
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
 
+/** Compara a chave enviada com a configurada em tempo constante. Sem ACCESS_KEY configurada, tudo vale. */
+export function accessKeyMatches(expected: string | undefined, sent: unknown): boolean {
+  if (!expected) return true;
+  const a = Buffer.from(String(sent ?? ''));
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 /**
  * Proteção simples para uso pessoal: se ACCESS_KEY estiver definido, exige o header x-access-key.
  * Sem ACCESS_KEY, tudo fica aberto (útil em desenvolvimento).

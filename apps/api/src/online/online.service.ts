@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { ConflictException, ForbiddenException, HttpException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import {
   START_FEN,
   boardOutcome,
@@ -44,6 +44,8 @@ interface LiveDoc {
   result: GameResult;
   termination: Termination;
   drawOffer?: Color;
+  /** Criada com a chave: salva e analisada no fim. Ausente (partidas antigas) = true. */
+  analyzed?: boolean;
   createdAt: Date;
   startedAt?: Date;
   updatedAt: Date;
@@ -66,12 +68,19 @@ const ABANDON_MS = 2 * 60_000;
 const KEEP_FINISHED_MS = 30 * 60_000;
 /** Convites nunca aceitos expiram. */
 const WAITING_TTL_MS = 24 * 60 * 60_000;
+/** Salas criadas sem a chave (abertas a qualquer um): limites para não sobrecarregar a VM. */
+const PUBLIC_WAITING_TTL_MS = 60 * 60_000;
+const PUBLIC_MAX_OPEN = 30;
+const PUBLIC_PER_IP = 5;
+const PUBLIC_IP_WINDOW_MS = 10 * 60_000;
 
 @Injectable()
 export class OnlineService implements OnModuleInit {
   private readonly logger = new Logger(OnlineService.name);
   private readonly games = new Map<string, LiveGame>();
   private readonly live: Collection<LiveDoc>;
+  /** Instantes das últimas salas sem chave criadas por IP. */
+  private readonly publicByIp = new Map<string, number[]>();
   /** O gateway registra aqui como avisar os clientes (timeout/abandono acontecem fora de um evento). */
   onChange: (state: OnlinePublicState) => void = () => undefined;
 
@@ -86,7 +95,8 @@ export class OnlineService implements OnModuleInit {
   async onModuleInit() {
     const docs = await this.live.find({ status: { $ne: 'over' } }).toArray();
     for (const doc of docs) {
-      if (doc.status === 'waiting' && Date.now() - doc.createdAt.getTime() > WAITING_TTL_MS) {
+      const ttl = doc.analyzed === false ? PUBLIC_WAITING_TTL_MS : WAITING_TTL_MS;
+      if (doc.status === 'waiting' && Date.now() - doc.createdAt.getTime() > ttl) {
         await this.live.deleteOne({ _id: doc._id });
         continue;
       }
@@ -97,11 +107,21 @@ export class OnlineService implements OnModuleInit {
       this.scheduleFlag(g);
       // Ninguém está conectado logo após o restart: dá o prazo normal de abandono.
       if (g.status === 'playing') this.scheduleAbandon(g);
+      if (g.status === 'waiting' && g.analyzed === false) this.expireIfNotAccepted(g);
     }
     if (docs.length) this.logger.log(`${docs.length} partida(s) online recarregada(s)`);
   }
 
-  async create(input: { name: string; userId?: string; color: Color | 'random'; timeControl: TimeControl }) {
+  /**
+   * Cria o convite. Com a chave (`analyzed`), a partida é salva e analisada no fim; sem a chave
+   * qualquer um pode criar, mas a partida não é salva e há limite de salas abertas e por IP.
+   */
+  async create(
+    input: { name: string; userId?: string; color: Color | 'random'; timeControl: TimeControl },
+    analyzed: boolean,
+    ip: string,
+  ) {
+    if (!analyzed) this.checkPublicLimits(ip);
     const color: Color = input.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : input.color;
     const token = newToken();
     const seat: Seat = { name: input.name, userId: input.userId, tokenHash: hashToken(token) };
@@ -117,6 +137,7 @@ export class OnlineService implements OnModuleInit {
       status: 'waiting',
       result: '*',
       termination: 'unterminated',
+      analyzed,
       createdAt: now,
       updatedAt: now,
       chess: new Chess(),
@@ -125,6 +146,7 @@ export class OnlineService implements OnModuleInit {
     };
     this.games.set(g._id, g);
     await this.save(g);
+    if (!analyzed) this.expireIfNotAccepted(g);
     return { gameId: g._id, token, color };
   }
 
@@ -188,6 +210,7 @@ export class OnlineService implements OnModuleInit {
       for (const c of ['w', 'b'] as const) if (g.connected[c].delete(socketId)) hit = true;
       if (!hit) continue;
       if (g.status === 'playing') this.scheduleAbandon(g);
+      if (g.status === 'waiting' && g.analyzed === false) this.expireIfNotAccepted(g);
       changed.push(this.publicState(g));
     }
     return changed;
@@ -283,7 +306,31 @@ export class OnlineService implements OnModuleInit {
       result: g.result,
       termination: g.termination,
       drawOffer: g.drawOffer,
+      analyzed: g.analyzed !== false,
     };
+  }
+
+  private checkPublicLimits(ip: string) {
+    const open = [...this.games.values()].filter((g) => g.analyzed === false && g.status !== 'over').length;
+    if (open >= PUBLIC_MAX_OPEN) throw new HttpException('Muitas salas abertas agora. Tente de novo daqui a pouco.', 429);
+    const now = Date.now();
+    const recent = (this.publicByIp.get(ip) ?? []).filter((t) => now - t < PUBLIC_IP_WINDOW_MS);
+    if (recent.length >= PUBLIC_PER_IP) throw new HttpException('Você criou muitas salas seguidas. Espere alguns minutos.', 429);
+    recent.push(now);
+    this.publicByIp.set(ip, recent);
+    // Limpa IPs antigos de vez em quando para o mapa não crescer.
+    if (this.publicByIp.size > 1000)
+      for (const [k, v] of this.publicByIp) if (v.every((t) => now - t >= PUBLIC_IP_WINDOW_MS)) this.publicByIp.delete(k);
+  }
+
+  /** Convite sem chave que ninguém aceitou some depois de uma hora. */
+  private expireIfNotAccepted(g: LiveGame) {
+    const left = PUBLIC_WAITING_TTL_MS - (Date.now() - g.createdAt.getTime());
+    setTimeout(async () => {
+      if (g.status !== 'waiting') return;
+      this.games.delete(g._id);
+      await this.live.deleteOne({ _id: g._id });
+    }, Math.max(0, left)).unref();
   }
 
   private requirePlayer(g: LiveGame, token: string): Color {
@@ -342,6 +389,13 @@ export class OnlineService implements OnModuleInit {
     if (g.abandonTimer) clearTimeout(g.abandonTimer);
     g.flagTimer = g.abandonTimer = undefined;
 
+    // Sala criada sem a chave: não salva nem analisa (só some da memória depois).
+    if (g.analyzed === false) {
+      await this.live.deleteOne({ _id: g._id });
+      setTimeout(() => this.games.delete(g._id), KEEP_FINISHED_MS).unref();
+      return;
+    }
+
     try {
       // Grava como partida normal (mesmo id), já na fila de análise.
       await this.gamesService.persist({
@@ -378,6 +432,7 @@ export class OnlineService implements OnModuleInit {
       result: g.result,
       termination: g.termination,
       drawOffer: g.drawOffer,
+      analyzed: g.analyzed,
       createdAt: g.createdAt,
       startedAt: g.startedAt,
       updatedAt: g.updatedAt,

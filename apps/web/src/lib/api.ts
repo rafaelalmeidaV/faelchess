@@ -65,8 +65,15 @@ export const api = {
   deleteGame: (id: string) => request<{ ok: true }>(`/games/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   queue: () => request<Record<string, number>>('/games/queue'),
   health: () => request<{ ok: boolean }>('/health'),
-  nextPuzzle: (userId: string, theme?: string) =>
-    request<Puzzle>(`/puzzles/next?${new URLSearchParams({ userId, ...(theme ? { theme } : {}) })}`),
+  /** Com a chave: pelo userId (rating no banco). Sem a chave: pelo rating e ids recentes do navegador. */
+  nextPuzzle: (q: { userId?: string; theme?: string; rating?: number; exclude?: string[] }) => {
+    const p = new URLSearchParams();
+    if (q.userId) p.set('userId', q.userId);
+    if (q.theme) p.set('theme', q.theme);
+    if (q.rating !== undefined) p.set('rating', String(q.rating));
+    if (q.exclude?.length) p.set('exclude', q.exclude.join(','));
+    return request<Puzzle>(`/puzzles/next?${p}`);
+  },
   getPuzzle: (id: string) => request<Puzzle>(`/puzzles/${encodeURIComponent(id)}`),
   puzzleAttempt: (id: string, userId: string, win: boolean) =>
     request<{ rating: number; delta: number; counted: boolean }>(`/puzzles/${encodeURIComponent(id)}/attempt`, {

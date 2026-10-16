@@ -10,7 +10,7 @@ import { api, type GameSummary } from '../lib/api';
 import { loadAppearance } from '../lib/appearance';
 import { BOT_LEVELS } from '../lib/engine';
 import { createOnlineGame } from '../lib/online';
-import type { Profile } from '../lib/profile';
+import { getAccessKey, type Profile } from '../lib/profile';
 import { navigate } from '../lib/router';
 import { TRAINING_KEY, useStoredFlag } from '../lib/storedFlag';
 import { OUTCOME_PALETTE, mySide, opponentName, outcomeFor, pct, relativeDay } from '../lib/summary';
@@ -279,7 +279,10 @@ export function HomePage({ profile }: { profile: Profile }) {
 
           <Tabs.Content value="online">
             <Panel gap="6" mt="3">
-              <Muted>Cria um link de convite para jogar com alguém.</Muted>
+              <Muted>
+                Cria um link de convite para jogar com alguém.
+                {!getAccessKey() && ' Sem a chave de acesso, a partida não é salva nem analisada no fim.'}
+              </Muted>
               <Flex gap="6" flexWrap="wrap">
                 <ChoiceGroup label="Suas peças" shape="tile" value={onlineColor} onChange={setOnlineColor} options={sideChoices(pieceSet)} />
                 <Box flex="1" minW="64">

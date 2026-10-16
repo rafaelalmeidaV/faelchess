@@ -235,6 +235,8 @@ export interface OnlinePublicState {
   result: GameResult;
   termination: Termination;
   drawOffer?: Color;
+  /** Criada com a chave de acesso: ao terminar é salva e vai para a análise. Sem chave, não. */
+  analyzed: boolean;
 }
 
 /** Problema importado do banco do Lichess (CC0), coleção `puzzles`. */

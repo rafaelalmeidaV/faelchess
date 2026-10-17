@@ -31,8 +31,8 @@ export const Indicator = forwardRef<HTMLDivElement, IndicatorProps>(function Ind
 
 export const CopyText = forwardRef<HTMLDivElement, IndicatorProps>(function CopyText(props, ref) {
   return (
-    <StyledIndicator ref={ref} copied="Copied" {...props}>
-      Copy
+    <StyledIndicator ref={ref} copied="Copiado" {...props}>
+      {props.children ?? 'Copiar'}
     </StyledIndicator>
   )
 })

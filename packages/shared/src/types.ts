@@ -237,6 +237,14 @@ export interface OnlinePublicState {
   drawOffer?: Color;
   /** Criada com a chave de acesso: ao terminar é salva e vai para a análise. Sem chave, não. */
   analyzed: boolean;
+  /** Enquanto ninguém aceitou o convite: quando ele expira (ms desde 1970). */
+  expiresAt?: number;
+}
+
+/** Aviso de que a sala não existe mais: `saved` = a partida foi gravada (dá para abrir a análise). */
+export interface OnlineGone {
+  id: string;
+  saved: boolean;
 }
 
 /** Problema importado do banco do Lichess (CC0), coleção `puzzles`. */

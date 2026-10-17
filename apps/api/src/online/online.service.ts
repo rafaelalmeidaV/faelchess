@@ -6,6 +6,7 @@ import {
   parseUci,
   type Color,
   type GameResult,
+  type OnlineGone,
   type OnlinePublicState,
   type Termination,
   type TimeControl,
@@ -66,10 +67,9 @@ const hashToken = (t: string) => createHash('sha256').update(t).digest('hex');
 const ABANDON_MS = 2 * 60_000;
 /** Partidas terminadas ficam um tempo na memória para os clientes verem o resultado. */
 const KEEP_FINISHED_MS = 30 * 60_000;
-/** Convites nunca aceitos expiram. */
-const WAITING_TTL_MS = 24 * 60 * 60_000;
+/** Convite que ninguém aceitou expira (com ou sem a chave). */
+const WAITING_TTL_MS = 5 * 60_000;
 /** Salas criadas sem a chave (abertas a qualquer um): limites para não sobrecarregar a VM. */
-const PUBLIC_WAITING_TTL_MS = 60 * 60_000;
 const PUBLIC_MAX_OPEN = 30;
 const PUBLIC_PER_IP = 5;
 const PUBLIC_IP_WINDOW_MS = 10 * 60_000;
@@ -83,20 +83,23 @@ export class OnlineService implements OnModuleInit {
   private readonly publicByIp = new Map<string, number[]>();
   /** O gateway registra aqui como avisar os clientes (timeout/abandono acontecem fora de um evento). */
   onChange: (state: OnlinePublicState) => void = () => undefined;
+  /** Idem para quando a sala some (convite expirado). */
+  onGone: (gone: OnlineGone) => void = () => undefined;
+  private readonly savedGames: Collections['games'];
 
   constructor(
     db: Collections,
     private readonly gamesService: GamesService,
   ) {
     this.live = db.db.collection<LiveDoc>('live_games');
+    this.savedGames = db.games;
   }
 
   /** Recarrega as partidas em andamento depois de um restart. O tempo em que a API ficou fora não conta. */
   async onModuleInit() {
     const docs = await this.live.find({ status: { $ne: 'over' } }).toArray();
     for (const doc of docs) {
-      const ttl = doc.analyzed === false ? PUBLIC_WAITING_TTL_MS : WAITING_TTL_MS;
-      if (doc.status === 'waiting' && Date.now() - doc.createdAt.getTime() > ttl) {
+      if (doc.status === 'waiting' && Date.now() - doc.createdAt.getTime() > WAITING_TTL_MS) {
         await this.live.deleteOne({ _id: doc._id });
         continue;
       }
@@ -107,7 +110,7 @@ export class OnlineService implements OnModuleInit {
       this.scheduleFlag(g);
       // Ninguém está conectado logo após o restart: dá o prazo normal de abandono.
       if (g.status === 'playing') this.scheduleAbandon(g);
-      if (g.status === 'waiting' && g.analyzed === false) this.expireIfNotAccepted(g);
+      if (g.status === 'waiting') this.expireIfNotAccepted(g);
     }
     if (docs.length) this.logger.log(`${docs.length} partida(s) online recarregada(s)`);
   }
@@ -146,7 +149,7 @@ export class OnlineService implements OnModuleInit {
     };
     this.games.set(g._id, g);
     await this.save(g);
-    if (!analyzed) this.expireIfNotAccepted(g);
+    this.expireIfNotAccepted(g);
     return { gameId: g._id, token, color };
   }
 
@@ -210,7 +213,7 @@ export class OnlineService implements OnModuleInit {
       for (const c of ['w', 'b'] as const) if (g.connected[c].delete(socketId)) hit = true;
       if (!hit) continue;
       if (g.status === 'playing') this.scheduleAbandon(g);
-      if (g.status === 'waiting' && g.analyzed === false) this.expireIfNotAccepted(g);
+      if (g.status === 'waiting') this.expireIfNotAccepted(g);
       changed.push(this.publicState(g));
     }
     return changed;
@@ -307,6 +310,7 @@ export class OnlineService implements OnModuleInit {
       termination: g.termination,
       drawOffer: g.drawOffer,
       analyzed: g.analyzed !== false,
+      expiresAt: g.status === 'waiting' ? g.createdAt.getTime() + WAITING_TTL_MS : undefined,
     };
   }
 
@@ -323,14 +327,20 @@ export class OnlineService implements OnModuleInit {
       for (const [k, v] of this.publicByIp) if (v.every((t) => now - t >= PUBLIC_IP_WINDOW_MS)) this.publicByIp.delete(k);
   }
 
-  /** Convite sem chave que ninguém aceitou some depois de uma hora. */
+  /** Convite que ninguém aceitou some depois de WAITING_TTL_MS; quem está na página é avisado. */
   private expireIfNotAccepted(g: LiveGame) {
-    const left = PUBLIC_WAITING_TTL_MS - (Date.now() - g.createdAt.getTime());
+    const left = WAITING_TTL_MS - (Date.now() - g.createdAt.getTime());
     setTimeout(async () => {
       if (g.status !== 'waiting') return;
       this.games.delete(g._id);
       await this.live.deleteOne({ _id: g._id });
+      this.onGone({ id: g._id, saved: false });
     }, Math.max(0, left)).unref();
+  }
+
+  /** Sala que não está mais na memória: a partida foi gravada (terminou com a chave)? */
+  async wasSaved(gameId: string) {
+    return (await this.savedGames.countDocuments({ _id: gameId }, { limit: 1 })) > 0;
   }
 
   private requirePlayer(g: LiveGame, token: string): Color {

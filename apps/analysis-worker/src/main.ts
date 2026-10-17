@@ -19,6 +19,7 @@ const config = {
   multiPv: Number(env('ANALYSIS_MULTIPV', '3')),
   threads: Number(env('STOCKFISH_THREADS', String(Math.max(1, Math.min(4, cpus().length - 1))))),
   hashMb: Number(env('STOCKFISH_HASH_MB', '256')),
+  maxMoveMs: Number(env('ANALYSIS_MAX_MOVE_MS', '15000')),
   pollMs: Number(env('POLL_MS', '5000')),
   stuckMs: Number(env('STUCK_MINUTES', '10')) * 60_000,
   maxAttempts: Number(env('MAX_ATTEMPTS', '3')),
@@ -80,7 +81,12 @@ async function main() {
     },
   };
 
-  const engine = new UciEngine({ path: config.stockfishPath, threads: config.threads, hashMb: config.hashMb });
+  const engine = new UciEngine({
+    path: config.stockfishPath,
+    threads: config.threads,
+    hashMb: config.hashMb,
+    maxMoveMs: config.maxMoveMs,
+  });
   await engine.start();
   log(`Worker pronto: ${engine.name}, depth ${config.depth}, MultiPV ${config.multiPv}, ${config.threads} threads`);
 
@@ -171,8 +177,9 @@ async function main() {
           },
         },
       );
-      // Se o Stockfish morreu, sai: o systemd/pm2 reinicia o processo.
-      if (/Stockfish encerrou|EPIPE/.test(message)) await shutdown('engine-crash');
+      // Stockfish morreu ou travou (timeout): sai, e o systemd reinicia tudo com um Stockfish novo.
+      // Continuar com o mesmo processo faria todas as partidas seguintes falharem também.
+      if (/Stockfish encerrou|EPIPE|Timeout esperando o Stockfish/.test(message)) await shutdown('engine-crash');
     } finally {
       clearInterval(heartbeat);
       currentGameId = null;

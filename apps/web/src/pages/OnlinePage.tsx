@@ -1,16 +1,16 @@
 import { Chess } from 'chess.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { START_FEN, parseUci, type Color, type OnlinePublicState } from '@faelchess/shared';
+import { START_FEN, parseUci, type Color, type OnlineGone, type OnlinePublicState } from '@faelchess/shared';
 import { Check, Copy, Eye, Flag, Handshake, Swords } from 'lucide-react';
 import { Box, Divider, Flex, HStack, Stack } from 'styled-system/jsx';
 import { Board, type BoardColor } from '../components/Board';
-import { Clock } from '../components/Clock';
+import { Clock, formatClock } from '../components/Clock';
 import { GameLayout } from '../components/GameLayout';
 import { Muted, Panel } from '../components/kit';
 import { MoveList } from '../components/MoveList';
 import { MoveNav } from '../components/MoveNav';
 import { Alert, Badge, Button, Clipboard, Heading, Input, Spinner, Text, toaster } from '../components/ui';
-import { fetchOnlineState, getSocket, joinOnlineGame } from '../lib/online';
+import { getSocket, joinOnlineGame } from '../lib/online';
 import { getOnlineToken, type Profile } from '../lib/profile';
 import { capturedFor, materialFromFen } from '../lib/material';
 import { useMoveBrowser } from '../lib/useMoveBrowser';
@@ -35,7 +35,7 @@ function pgnOf(state: OnlinePublicState) {
 export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profile }) {
   const [state, setState] = useState<OnlinePublicState | null>(null);
   const [myColor, setMyColor] = useState<Color | null>(null);
-  const [gone, setGone] = useState(false);
+  const [gone, setGone] = useState<OnlineGone | null>(null);
   const [error, setError] = useState('');
   const [joining, setJoining] = useState(false);
   const [tick, setTick] = useState(0);
@@ -54,7 +54,7 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
       setState(s);
     };
     const onJoined = ({ color }: { color: Color | null }) => setMyColor(color);
-    const onGone = (id: string) => id === gameId && setGone(true);
+    const onGone = (g: OnlineGone) => g.id === gameId && setGone(g);
     const onError = (msg: string) => setError(msg);
     const join = () => socket.emit('game:join', { gameId, token: token ?? undefined });
 
@@ -76,16 +76,18 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
     };
   }, [gameId, token]);
 
-  // Partida que já saiu da memória do servidor: se foi salva, vai para a análise.
+  // Partida que já saiu da memória do servidor: se foi gravada, vai para a análise.
   useEffect(() => {
-    if (!gone) return;
-    // Sem análise (sala criada sem chave) não existe página de análise para abrir.
-    if (state && !state.analyzed) return;
-    fetchOnlineState(gameId).then((s) => {
-      if (!s) navigate(`/game/${gameId}`);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (gone?.saved) navigate(`/game/${gameId}`);
   }, [gone, gameId]);
+
+  // Contagem regressiva do convite (o servidor apaga a sala quando expira).
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (state?.status !== 'waiting' || !state.expiresAt) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [state?.status, state?.expiresAt]);
 
   // Relógio local: re-render a cada 100 ms enquanto corre.
   useEffect(() => {
@@ -137,13 +139,20 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
     }
   };
 
-  if (gone && state && !state.analyzed)
+  if (gone && !gone.saved)
     return (
       <Stack gap="3" maxW="md">
-        <Muted>Esta partida já terminou e não ficou salva (foi criada sem a chave de acesso).</Muted>
+        <Heading as="h2" textStyle="lg">
+          {state?.status === 'over' ? 'Partida encerrada' : 'Convite expirado'}
+        </Heading>
+        <Muted>
+          {state?.status === 'over'
+            ? 'Esta partida não ficou salva (foi criada sem a chave de acesso).'
+            : 'Ninguém entrou em 5 minutos, ou o link não existe mais. Crie um convite novo.'}
+        </Muted>
         <Box>
-          <Button variant="surface" onClick={() => navigate('/')}>
-            Início
+          <Button colorPalette="jade" onClick={() => navigate('/')}>
+            Criar outro convite
           </Button>
         </Box>
       </Stack>
@@ -202,7 +211,10 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
               <Heading as="h3" textStyle="md">
                 Aguardando o adversário
               </Heading>
-              <Muted>Mande este link. A partida começa quando ele entrar.</Muted>
+              <Muted>
+                Mande este link. A partida começa quando ele entrar.
+                {state.expiresAt && ` O convite expira em ${formatClock(Math.max(0, state.expiresAt - now))}.`}
+              </Muted>
             </Stack>
           </HStack>
           <Clipboard.Root value={link}>

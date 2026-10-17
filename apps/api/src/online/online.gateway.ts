@@ -30,6 +30,7 @@ export class OnlineGateway implements OnGatewayInit, OnGatewayDisconnect {
   afterInit() {
     // Timeouts e abandonos acontecem fora de um evento: o serviço avisa por aqui.
     this.online.onChange = (state) => this.server.to(state.id).emit('game:state', state);
+    this.online.onGone = (gone) => this.server.to(gone.id).emit('game:gone', gone);
   }
 
   handleDisconnect(socket: Socket) {
@@ -58,9 +59,11 @@ export class OnlineGateway implements OnGatewayInit, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('game:join')
-  join(@ConnectedSocket() socket: Socket, @MessageBody() dto: GameRef) {
+  async join(@ConnectedSocket() socket: Socket, @MessageBody() dto: GameRef) {
     if (this.limited(socket) || !this.valid(dto)) return;
-    if (!this.online.has(dto.gameId)) return socket.emit('game:gone', dto.gameId);
+    // Sala fora da memória: diz se a partida foi gravada (abre a análise) ou se o convite expirou.
+    if (!this.online.has(dto.gameId))
+      return socket.emit('game:gone', { id: dto.gameId, saved: await this.online.wasSaved(dto.gameId) });
     const { color, state } = this.online.attach(dto.gameId, dto.token, socket.id);
     void socket.join(dto.gameId);
     socket.emit('game:joined', { color });

@@ -11,6 +11,11 @@ export interface EngineOptions {
   hashMb: number;
   /** Tempo máximo por posição (proteção contra travamento). */
   timeoutMs?: number;
+  /**
+   * Teto de busca por posição: o Stockfish para na profundidade pedida OU neste tempo, o que vier
+   * primeiro. Sem isso, uma posição rara pode buscar sem fim e travar a fila inteira.
+   */
+  maxMoveMs?: number;
 }
 
 /** Interface mínima que o analisador usa (facilita testar com um engine falso). */
@@ -100,7 +105,7 @@ export class UciEngine implements Analyzer {
       return line.startsWith('bestmove');
     }, this.opts.timeoutMs ?? 120_000);
     this.send(`position fen ${fen}`);
-    this.send(`go depth ${depth}`);
+    this.send(`go depth ${depth} movetime ${this.opts.maxMoveMs ?? 15_000}`);
     await done;
 
     const stm = sideToMove(fen);

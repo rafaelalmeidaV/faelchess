@@ -129,7 +129,7 @@ export class ListGamesQuery {
   userId?: string;
 
   @IsOptional()
-  @IsIn(['bot', 'local', 'online'])
+  @IsIn(['bot', 'local', 'online', 'chesscom'])
   type?: GameType;
 
   @IsOptional()

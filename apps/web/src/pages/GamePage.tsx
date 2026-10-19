@@ -19,7 +19,7 @@ import { GameLayout } from '../components/GameLayout';
 import { Muted, Panel } from '../components/kit';
 import { MoveFeedback, San } from '../components/MoveFeedback';
 import { MoveList } from '../components/MoveList';
-import { Alert, Badge, Button, Checkbox, Heading, IconButton, Spinner, Table, Text, toaster } from '../components/ui';
+import { Alert, Badge, Button, Checkbox, Heading, IconButton, Link, Spinner, Table, Text, toaster } from '../components/ui';
 import { api, type Game } from '../lib/api';
 import { capturedFor, materialFromFen } from '../lib/material';
 import { useMoveSound } from '../lib/useMoveSound';
@@ -28,12 +28,18 @@ import { navigate } from '../lib/router';
 import { resultText } from './PlayPage';
 import { PHASE_PT, TAG_PT, badgeSvg } from '../lib/labels';
 
+/** Nome com o rating da plataforma de origem (partidas importadas do chess.com). */
+const withRating = (p: { name: string; rating?: number }) => (p.rating ? `${p.name} (${p.rating})` : p.name);
+
 function EvalBar({ value, orientation }: { value?: Eval; orientation: BoardColor }) {
   const white = value ? winPctWhite(value) : 50;
   return (
     <div className={`eval-bar ${orientation === 'black' ? 'flipped' : ''}`} title={formatEval(value)}>
       <div className="eval-white" style={{ height: `${white}%` }} />
-      <span className={`eval-label ${white >= 50 ? 'on-white' : 'on-black'}`}>{formatEval(value).replace('+', '')}</span>
+      {/* Um traço a cada 1/8 (as fileiras); o do meio marca o equilíbrio. */}
+      {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+        <div key={i} className={`eval-tick${i === 4 ? ' zero' : ''}`} style={{ top: `${i * 12.5}%` }} />
+      ))}
     </div>
   );
 }
@@ -163,12 +169,12 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
 
   const board = (
     <>
-      <Clock name={orientation === 'white' ? game.black.name : game.white.name} active={false} captured={capturedFor(material, topColor)} />
+      <Clock name={withRating(orientation === 'white' ? game.black : game.white)} active={false} captured={capturedFor(material, topColor)} />
       <HStack gap="2" alignItems="stretch">
         <EvalBar value={status === 'done' ? evalNow : undefined} orientation={orientation} />
         <Board fen={fen} orientation={orientation} lastMove={move ? [move.uci.slice(0, 2), move.uci.slice(2, 4)] : undefined} shapes={shapes} />
       </HStack>
-      <Clock name={orientation === 'white' ? game.white.name : game.black.name} active={false} captured={capturedFor(material, bottomColor)} />
+      <Clock name={withRating(orientation === 'white' ? game.white : game.black)} active={false} captured={capturedFor(material, bottomColor)} />
       <Box hideFrom="lg">{navButtons}</Box>
     </>
   );
@@ -188,6 +194,14 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
         <Muted>
           {new Date(game.finishedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
           {game.opening && ` · ${game.opening.eco} ${game.opening.name}`} · {Math.ceil(n / 2)} lances
+          {game.externalUrl && (
+            <>
+              {' · '}
+              <Link href={game.externalUrl} target="_blank" rel="noreferrer" colorPalette="jade" color="jade.11">
+                Ver no chess.com
+              </Link>
+            </>
+          )}
         </Muted>
         {status !== 'done' && (
           <Text textStyle="sm" color={status === 'failed' ? 'error' : 'fg.muted'} mt="1">
@@ -198,7 +212,8 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
         )}
       </Panel>
 
-      <Grid gridTemplateColumns={{ base: '1fr', md: analysis ? 'repeat(2, minmax(0, 1fr))' : '1fr' }} gap="4" alignItems="start">
+      {/* Lado a lado só quando cabem (~250px cada); com o menu lateral expandido a coluna fica estreita e empilha. */}
+      <Grid gridTemplateColumns={analysis ? 'repeat(auto-fit, minmax(250px, 1fr))' : '1fr'} gap="4" alignItems="start">
         {analysis && (
           <Panel gap="0" px="4" py="3">
             <Table.Root variant="plain" css={{ '& td, & th': { py: '1', px: '1' } }}>

@@ -15,7 +15,7 @@ import { Collections } from '../database/database.module';
 import { newId } from '../common/ids';
 import type { ListGamesQuery } from './dto';
 
-export type PersistGameInput = Omit<CreateGameInput, 'type'> & { type: GameType; id?: string };
+export type PersistGameInput = Omit<CreateGameInput, 'type'> & { type: GameType; id?: string; externalUrl?: string };
 
 /** Campos de listagem: tudo menos os lances (que são o grosso do documento). */
 const SUMMARY_PROJECTION = {
@@ -80,15 +80,17 @@ export class GamesService {
     const finishedAt = new Date(input.finishedAt);
     const now = new Date();
 
-    chess.setHeader('Event', input.type === 'bot' ? 'Partida contra bot' : `Partida ${input.type}`);
-    chess.setHeader('Site', 'faelchess');
+    const EVENT = { bot: 'Partida contra bot', local: 'Partida local', online: 'Partida online', chesscom: 'Partida no chess.com' };
+    chess.setHeader('Event', EVENT[input.type]);
+    chess.setHeader('Site', input.externalUrl ?? 'faelchess');
     chess.setHeader('Date', pgnDate(startedAt));
     chess.setHeader('White', playerPgnName(input.white));
     chess.setHeader('Black', playerPgnName(input.black));
     chess.setHeader('Result', result);
     chess.setHeader('Termination', termination);
-    if (input.white.botElo) chess.setHeader('WhiteElo', String(input.white.botElo));
-    if (input.black.botElo) chess.setHeader('BlackElo', String(input.black.botElo));
+    const elo = (p: PlayerInfo) => p.botElo ?? p.rating;
+    if (elo(input.white)) chess.setHeader('WhiteElo', String(elo(input.white)));
+    if (elo(input.black)) chess.setHeader('BlackElo', String(elo(input.black)));
     if (input.timeControl) {
       chess.setHeader('TimeControl', `${input.timeControl.baseMs / 1000}+${input.timeControl.incrementMs / 1000}`);
     }
@@ -109,6 +111,7 @@ export class GamesService {
       ...(startFen !== START_FEN ? { startFen } : {}),
       pgn: chess.pgn(),
       ...(input.timeControl ? { timeControl: input.timeControl } : {}),
+      ...(input.externalUrl ? { externalUrl: input.externalUrl } : {}),
       startedAt,
       finishedAt,
       createdAt: now,

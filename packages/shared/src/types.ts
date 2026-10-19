@@ -1,6 +1,7 @@
 export type Color = 'w' | 'b';
 
-export type GameType = 'bot' | 'local' | 'online';
+/** `chesscom` = partida importada do chess.com (só para análise). */
+export type GameType = 'bot' | 'local' | 'online' | 'chesscom';
 export type GameResult = '1-0' | '0-1' | '1/2-1/2' | '*';
 export type Termination =
   | 'checkmate'
@@ -81,6 +82,8 @@ export interface PlayerInfo {
   userId?: string;
   botElo?: number;
   name: string;
+  /** Rating do jogador na plataforma de origem (partidas importadas). */
+  rating?: number;
 }
 
 export interface TimeControl {
@@ -160,6 +163,8 @@ export interface GameDoc {
   startFen?: string;
   pgn: string;
   timeControl?: TimeControl;
+  /** Link da partida original (importadas do chess.com). */
+  externalUrl?: string;
   startedAt: Date;
   finishedAt: Date;
   createdAt: Date;
@@ -190,7 +195,7 @@ export interface PositionDoc {
 
 /** Corpo do POST /games: o servidor recalcula SAN, FENs e PGN a partir dos lances UCI. */
 export interface CreateGameInput {
-  type: Exclude<GameType, 'online'>;
+  type: Exclude<GameType, 'online' | 'chesscom'>;
   white: PlayerInfo;
   black: PlayerInfo;
   result: GameResult;

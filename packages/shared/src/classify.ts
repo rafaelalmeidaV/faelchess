@@ -201,17 +201,20 @@ export function detectSacrifice(fenBefore: string, playedUci: string, lineAfter:
   const mv = playUci(chess, playedUci);
   if (!mv) return false;
 
-  // Sinal 1: a peça movida é capturada e o déficit persiste por um lance nosso.
-  const mats = materialAlong(chess.fen(), lineAfter.slice(0, 2), color);
+  // Sinal 1: a peça movida é capturada e o material NÃO volta em nenhum lance nosso da linha do engine
+  // (até 4 lances nossos). Retomadas atrasadas, ex.: 20.Nf5 Bxf5 21.Qf2 Bh6+ 22.Kb1 b6 23.exf5, são troca.
+  const mats = materialAlong(chess.fen(), lineAfter.slice(0, 8), color);
   const takesMovedPiece = lineAfter[0]?.slice(2, 4) === mv.to;
   if (takesMovedPiece && mats.length >= 1 && m0 - mats[0] >= SACRIFICE_MIN_MATERIAL) {
-    if (mats.length < 2 || m0 - mats[1] >= SACRIFICE_MIN_MATERIAL) return true;
+    const afterOurMoves = mats.filter((_, i) => i % 2 === 1);
+    if (afterOurMoves.every((x) => m0 - x >= SACRIFICE_MIN_MATERIAL)) return true;
   }
 
   // Sinal 2: peça oferecida.
   const piece = chess.get(mv.to);
   if (!piece || piece.type === 'k' || piece.type === 'p') return false;
-  const value = PIECE_VALUES[piece.type];
+  // Peça recém-promovida: o que está em jogo é o peão que virou dama, não a dama (28...a1=Q não sacrifica 9).
+  const value = mv.promotion ? PIECE_VALUES.p : PIECE_VALUES[piece.type];
   const capturedValue = mv.captured ? PIECE_VALUES[mv.captured] : 0;
   if (value - capturedValue < SACRIFICE_MIN_MATERIAL) return false;
 

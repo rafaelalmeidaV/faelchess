@@ -1,5 +1,6 @@
 import type { GameDoc, PositionDoc } from '@faelchess/shared';
-import { MongoClient, type Collection } from 'mongodb';
+import { MongoClient, type Collection, type Filter } from 'mongodb';
+import { readFileSync, readdirSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { analyzeGame, type PositionCache } from './analyze';
@@ -23,6 +24,10 @@ const config = {
   pollMs: Number(env('POLL_MS', '5000')),
   stuckMs: Number(env('STUCK_MINUTES', '10')) * 60_000,
   maxAttempts: Number(env('MAX_ATTEMPTS', '3')),
+  /** Pausa depois de cada partida importada (o lote do chess.com não fica com a CPU no talo por horas). */
+  importPauseMs: Number(env('IMPORT_PAUSE_MS', '60000')),
+  maxTempC: Number(env('MAX_CPU_TEMP_C', '80')),
+  resumeTempC: Number(env('RESUME_CPU_TEMP_C', '70')),
 };
 
 const log = (...args: unknown[]) => console.log(new Date().toISOString(), ...args);
@@ -47,16 +52,44 @@ async function recoverStuck(games: Collection<GameDoc>) {
   }
 }
 
-/** Pega a próxima partida pendente e já marca como "processing" numa operação atômica. */
-function claimNext(games: Collection<GameDoc>) {
-  return games.findOneAndUpdate(
-    { analysisStatus: 'pending' },
-    {
-      $set: { analysisStatus: 'processing', analysisStartedAt: new Date(), updatedAt: new Date() },
-      $inc: { analysisAttempts: 1 },
-    },
-    { sort: { createdAt: 1 }, returnDocument: 'after' },
-  );
+/**
+ * Pega a próxima partida pendente e já marca como "processing" numa operação atômica.
+ * Partidas jogadas no site vêm antes das importadas do chess.com (que podem ser centenas).
+ */
+async function claimNext(games: Collection<GameDoc>) {
+  const claim = (filter: Filter<GameDoc>) =>
+    games.findOneAndUpdate(
+      { ...filter, analysisStatus: 'pending' },
+      {
+        $set: { analysisStatus: 'processing', analysisStartedAt: new Date(), updatedAt: new Date() },
+        $inc: { analysisAttempts: 1 },
+      },
+      { sort: { createdAt: 1 }, returnDocument: 'after' },
+    );
+  return (await claim({ type: { $ne: 'chesscom' } })) ?? (await claim({ type: 'chesscom' }));
+}
+
+/** Temperatura do processador em °C (Linux), ou null se não der para ler. */
+function cpuTemp(): number | null {
+  try {
+    for (const zone of readdirSync('/sys/class/thermal')) {
+      if (!zone.startsWith('thermal_zone')) continue;
+      const type = readFileSync(`/sys/class/thermal/${zone}/type`, 'utf8').trim();
+      if (type === 'x86_pkg_temp') return Number(readFileSync(`/sys/class/thermal/${zone}/temp`, 'utf8')) / 1000;
+    }
+  } catch {
+    /* sem sensor */
+  }
+  return null;
+}
+
+/** Freio térmico: o PC de casa é um notebook antigo; acima do limite, espera esfriar. */
+async function coolDown() {
+  const temp = cpuTemp();
+  if (temp === null || temp < config.maxTempC) return;
+  log(`Processador a ${temp.toFixed(0)}°C: pausa até baixar de ${config.resumeTempC}°C`);
+  while ((cpuTemp() ?? 0) >= config.resumeTempC) await sleep(15_000);
+  log(`Esfriou (${cpuTemp()?.toFixed(0)}°C), continuando`);
 }
 
 async function main() {
@@ -115,6 +148,7 @@ async function main() {
       lastRecovery = Date.now();
     }
 
+    await coolDown();
     let game: GameDoc | null;
     try {
       game = await claimNext(games);
@@ -129,6 +163,8 @@ async function main() {
     }
 
     currentGameId = game._id;
+    /** Fração das posições que o Stockfish calculou de fato (o resto veio do cache). */
+    let engineShare = 1;
     const label = `${game._id} (${game.white.name} x ${game.black.name}, ${game.moves.length} lances)`;
     log(`Analisando ${label}`);
 
@@ -158,6 +194,7 @@ async function main() {
           $unset: { analysisError: '' },
         },
       );
+      engineShare = result.stats.positions ? 1 - result.stats.cacheHits / result.stats.positions : 0;
       const { accuracy } = result.summary;
       log(
         `Pronto ${game._id}: precisão brancas ${accuracy.white}%, pretas ${accuracy.black}% ` +
@@ -184,6 +221,8 @@ async function main() {
       clearInterval(heartbeat);
       currentGameId = null;
     }
+    // Pausa proporcional ao trabalho do Stockfish: reanálise que veio toda do cache não precisa esfriar.
+    if (game.type === 'chesscom' && !stopping) await sleep(config.importPauseMs * engineShare);
   }
 }
 

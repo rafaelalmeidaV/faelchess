@@ -1,7 +1,7 @@
 import { Chess } from 'chess.js';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
-import { Bot, Flag, GraduationCap, Handshake, Repeat2 } from 'lucide-react';
+import { Bot, Flag, GraduationCap, Handshake, Lightbulb, Repeat2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Color, type PlayerInfo } from '@faelchess/shared';
 import { Divider, Flex, HStack, Stack } from 'styled-system/jsx';
@@ -21,6 +21,7 @@ import { TRAINING_KEY, TRAINING_ONLY_MINE_KEY, useStoredFlag } from '../lib/stor
 import { capturedFor, materialFromFen } from '../lib/material';
 import { saveGame } from '../lib/unsent';
 import { useLocalGame, type LocalGameConfig } from '../lib/useLocalGame';
+import { useHint } from '../lib/useHint';
 import { useMoveBrowser } from '../lib/useMoveBrowser';
 import { useMoveSound } from '../lib/useMoveSound';
 import { useTrainingReview } from '../lib/useTrainingReview';
@@ -192,14 +193,20 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
   const feedbackMove = lastVisible >= 0 ? game.moves[lastVisible] : undefined;
 
   // Selo na peça que acabou de jogar, enquanto ela ainda estiver naquela casa.
+  // Dica (como no Lichess): 1º clique marca a peça, 2º mostra também a casa de destino.
+  const hint = useHint(game.fen);
+  const canHint = game.status === 'playing' && browser.live && (!isBot || game.turn === me);
+
   const shapes = useMemo<DrawShape[]>(() => {
-    if (!feedback || !feedbackMove) return [];
+    const out: DrawShape[] = [];
+    if (hint.from) out.push(hint.to ? { orig: hint.from as Key, dest: hint.to as Key, brush: 'green' } : { orig: hint.from as Key, brush: 'green' });
+    if (!feedback || !feedbackMove) return out;
     const to = feedbackMove.uci.slice(2, 4);
     const piece = new Chess(game.fen).get(to as never);
-    if (!piece || piece.color !== colorOfMove(lastVisible)) return [];
-    return [{ orig: to as Key, customSvg: { html: badgeSvg(feedback.classification) } }];
+    if (!piece || piece.color !== colorOfMove(lastVisible)) return out;
+    return [...out, { orig: to as Key, customSvg: { html: badgeSvg(feedback.classification) } }];
     // colorOfMove só depende de firstColor, que é fixo na partida.
-  }, [feedback, feedbackMove, game.fen, lastVisible]);
+  }, [feedback, feedbackMove, game.fen, lastVisible, hint.from, hint.to]);
 
   const subOf = (c: Color) => {
     if (isBot && c === botColor) return thinking ? 'pensando…' : `Bot · ${level?.label}`;
@@ -336,6 +343,19 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
           >
             <Repeat2 /> Virar
           </Button>
+          {game.status === 'playing' && (
+            <Button
+              variant="surface"
+              size="sm"
+              disabled={!canHint || hint.level === 2}
+              loading={hint.thinking}
+              loadingText="Pensando…"
+              onClick={() => void hint.request()}
+              title={hint.level === 0 ? 'Mostra qual peça mover' : 'Mostra para qual casa'}
+            >
+              <Lightbulb /> {hint.level === 0 ? 'Dica' : 'Mais dica'}
+            </Button>
+          )}
           {game.status === 'playing' && !isBot && (
             <Button variant="surface" size="sm" onClick={() => confirm('Os dois concordam com o empate?') && game.agreeDraw()}>
               <Handshake /> Empate

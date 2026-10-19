@@ -1,7 +1,9 @@
 import { Crown, History, Puzzle, Swords, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { css } from 'styled-system/css';
 import { Box, Container, HStack } from 'styled-system/jsx';
 import { hstack } from 'styled-system/patterns';
+import { SideNav, type NavItem } from './components/SideNav';
 import { Alert, Button, Toaster } from './components/ui';
 import { GamePage } from './pages/GamePage';
 import { HistoryPage } from './pages/HistoryPage';
@@ -27,8 +29,37 @@ function NavLink({ href, active, icon, children }: { href: string; active: boole
   );
 }
 
+const SIDENAV_KEY = 'faelchess:sidenav';
+
+/**
+ * Variáveis de layout: altura do cabeçalho e largura do menu lateral. O tabuleiro (GameLayout)
+ * usa as duas para crescer no espaço que sobra. Nas telas de jogo, no desktop, o cabeçalho vira menu lateral.
+ */
+const LAYOUT = {
+  normal: css({ '--header-h': '57px', '--sidenav-w': '0px' }),
+  // Valores literais: o Panda gera o CSS na compilação e não enxerga constantes importadas (SIDENAV_W).
+  gameOpen: css({ '--header-h': { base: '57px', lg: '0px' }, '--sidenav-w': { base: '0px', lg: '220px' } }),
+  gameClosed: css({ '--header-h': { base: '57px', lg: '0px' }, '--sidenav-w': { base: '0px', lg: '64px' } }),
+};
+
 export function App() {
   const route = useRoute();
+  const [sideOpen, setSideOpen] = useState(() => {
+    try {
+      return localStorage.getItem(SIDENAV_KEY) === 'open';
+    } catch {
+      return false;
+    }
+  });
+  const toggleSide = () =>
+    setSideOpen((o) => {
+      try {
+        localStorage.setItem(SIDENAV_KEY, o ? 'closed' : 'open');
+      } catch {
+        /* ok */
+      }
+      return !o;
+    });
   const [profile, setProfile] = useState<Profile | null>(getProfile);
   const [notice, setNotice] = useState('');
 
@@ -49,9 +80,19 @@ export function App() {
   else if (section === 'settings') page = <SettingsPage profile={profile} onSaved={setProfile} />;
   else page = <HomePage profile={profile} />;
 
+  // Telas de tabuleiro: partida (bot/local), online, problemas e análise.
+  const gameMode = !!profile && (section === 'play' || section === 'online' || section === 'puzzles' || (section === 'game' && !!id));
+  const navItems: NavItem[] = [
+    { href: '#/', label: 'Jogar', icon: <Swords size={20} />, active: !section || section === 'play' || section === 'online' },
+    { href: '#/puzzles', label: 'Problemas', icon: <Puzzle size={20} />, active: section === 'puzzles' },
+    { href: '#/history', label: 'Partidas', icon: <History size={20} />, active: section === 'history' || section === 'game' },
+    { href: '#/settings', label: profile?.name ?? 'Perfil', icon: <UserRound size={20} />, active: section === 'settings' },
+  ];
+
   return (
-    <>
-      <Box as="header" borderBottomWidth="1px" bg="gray.2" position="sticky" top="0" zIndex="sticky">
+    <div className={gameMode ? (sideOpen ? LAYOUT.gameOpen : LAYOUT.gameClosed) : LAYOUT.normal}>
+      {gameMode && <SideNav items={navItems} open={sideOpen} onToggle={toggleSide} />}
+      <Box as="header" borderBottomWidth="1px" bg="gray.2" position="sticky" top="0" zIndex="sticky" hideFrom={gameMode ? 'lg' : undefined}>
         <Container maxW="8xl" px={{ base: '3', md: '6' }}>
           <HStack h="14" justify="space-between">
             <a href="#/" className={hstack({ gap: '2', fontWeight: 'bold', textStyle: 'lg', letterSpacing: 'tight' })}>
@@ -86,10 +127,12 @@ export function App() {
           </Alert.Root>
         </Container>
       )}
-      <Container as="main" maxW="8xl" pt={{ base: '3', md: '4' }} pb={{ base: '6', md: '8' }} px={{ base: '3', md: '6' }}>
-        {page}
-      </Container>
+      <Box style={{ marginLeft: 'var(--sidenav-w)' }} transition="margin-left 0.18s ease">
+        <Container as="main" maxW="8xl" pt={{ base: '3', md: '4' }} pb={{ base: '6', md: '8' }} px={{ base: '3', md: '6' }}>
+          {page}
+        </Container>
+      </Box>
       <Toaster />
-    </>
+    </div>
   );
 }

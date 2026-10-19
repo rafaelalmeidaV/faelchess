@@ -15,10 +15,10 @@ const STATUS = {
   done: { label: 'Analisada', palette: 'jade' },
   failed: { label: 'Falhou', palette: 'red' },
 } as const;
-const TYPE_PT: Record<string, string> = { bot: 'Bot', local: 'Local', online: 'Online' };
+const TYPE_PT: Record<string, string> = { bot: 'Bot', local: 'Local', online: 'Online', chesscom: 'chess.com' };
 const PAGE = 30;
 
-type Filter = 'all' | 'bot' | 'local' | 'online';
+type Filter = 'all' | 'bot' | 'local' | 'online' | 'chesscom';
 
 function AccuracyBar({ value }: { value?: number | null }) {
   if (typeof value !== 'number') return <Text color="fg.subtle">–</Text>;
@@ -90,6 +90,7 @@ export function HistoryPage({ profile }: { profile: Profile }) {
               { value: 'bot', label: 'Bot' },
               { value: 'local', label: 'Local' },
               { value: 'online', label: 'Online' },
+              { value: 'chesscom', label: 'chess.com' },
             ]}
           />
           <ToggleSwitch

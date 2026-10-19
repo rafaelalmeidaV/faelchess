@@ -267,3 +267,17 @@ describe('glickoUpdate', () => {
     expect(settled.rd).toBe(60);
   });
 });
+
+describe('detectSacrifice: falsos brilhantes encontrados em partidas reais', () => {
+  it('promover e deixar a peça nova ser capturada não é sacrifício (vale como peão)', () => {
+    // 28...a1=Q com a torre de f1 podendo capturar: o Stockfish até preferia a1=R.
+    expect(detectSacrifice('8/2p1kp1P/2p5/2P3R1/8/2q5/p4PP1/5RK1 b - - 0 28', 'a2a1q', ['f1a1', 'c3a1'])).toBe(false);
+  });
+
+  it('retomada depois de um lance intermediário não é sacrifício', () => {
+    // 20.Nf5 Bxf5 21.Qf2 Bh6+ 22.Kb1 b6 23.exf5 (linha real do Stockfish): a peça volta no 3º lance.
+    const fen = '1k1r2r1/1pp1qpbp/3p1nb1/1N1Pp2p/2B1P2Q/1P3PN1/P1P4P/2KR2R1 w - - 0 20';
+    expect(detectSacrifice(fen, 'g3f5', ['g6f5', 'h4f2', 'b7b6', 'e4f5'])).toBe(false);
+    expect(detectSacrifice(fen, 'g3f5', ['g6f5', 'h4f2', 'g7h6', 'c1b1', 'b7b6', 'e4f5'])).toBe(false);
+  });
+});

@@ -35,7 +35,7 @@ const db: Db = {
 
 const filterShape = {
   userId: z.string().optional().describe(`Id do jogador (padrão: ${DEFAULT_USER})`),
-  type: z.enum(['bot', 'local', 'online']).optional().describe('Tipo de partida'),
+  type: z.enum(['bot', 'local', 'online', 'chesscom']).optional().describe('Tipo de partida (chesscom = importada do chess.com, contra pessoas)'),
   outcome: z.enum(['win', 'loss', 'draw']).optional().describe('Resultado do ponto de vista do jogador'),
   color: z.enum(['white', 'black']).optional().describe('Cor com que o jogador jogou'),
   opening: z.string().optional().describe('ECO (ex.: "B50") ou trecho do nome (ex.: "Sicilian")'),

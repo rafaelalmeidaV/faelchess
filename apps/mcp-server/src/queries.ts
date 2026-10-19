@@ -23,7 +23,7 @@ export interface Db {
 
 export interface GameFilters {
   userId: string;
-  type?: 'bot' | 'local' | 'online';
+  type?: 'bot' | 'local' | 'online' | 'chesscom';
   /** Resultado do ponto de vista do usuário. */
   outcome?: 'win' | 'loss' | 'draw';
   color?: 'white' | 'black';
@@ -182,7 +182,7 @@ export async function listGames(db: Db, f: GameFilters, limit = 20) {
       date: g.finishedAt.toISOString().slice(0, 16),
       type: g.type,
       userColor: c === 'w' ? 'white' : 'black',
-      opponent: opp.kind === 'bot' ? `bot ${opp.botElo}` : opp.name,
+      opponent: opp.kind === 'bot' ? `bot ${opp.botElo}` : opp.rating ? `${opp.name} (${opp.rating})` : opp.name,
       outcome: userOutcome(g, f.userId),
       termination: g.termination,
       opening: g.opening ? `${g.opening.eco} ${g.opening.name}` : undefined,

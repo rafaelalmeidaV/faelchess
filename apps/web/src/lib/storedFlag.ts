@@ -23,3 +23,4 @@ export function useStoredFlag(key: string, initial: boolean) {
 
 export const TRAINING_KEY = 'faelchess:training';
 export const TRAINING_ONLY_MINE_KEY = 'faelchess:trainingOnlyMine';
+export const PUZZLE_THEMES_KEY = 'faelchess:puzzleShowThemes';

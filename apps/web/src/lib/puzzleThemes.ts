@@ -89,3 +89,13 @@ export const THEME_FILTERS = [
   'pawnEndgame',
   'promotion',
 ];
+
+/** Marcas que não ajudam a achar o lance (tamanho da linha, origem) ou entregam o desfecho. */
+const NOISE = new Set(['short', 'long', 'veryLong', 'oneMove', 'master', 'masterVsMaster', 'superGM', 'crushing', 'advantage', 'equality']);
+
+/** Temas para mostrar enquanto o problema está sendo resolvido. */
+export function hintThemes(themes: string[]): string[] {
+  const useful = themes.filter((t) => !NOISE.has(t));
+  // "mate" sozinho é redundante quando já existe "mate em N".
+  return useful.some((t) => /^mateIn\d$/.test(t)) ? useful.filter((t) => t !== 'mate') : useful;
+}

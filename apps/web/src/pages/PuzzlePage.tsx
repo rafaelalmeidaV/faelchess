@@ -1,19 +1,20 @@
 import { parseUci } from '@faelchess/shared';
 import { Chess } from 'chess.js';
-import { ArrowRight, Check, ExternalLink, Lightbulb, X } from 'lucide-react';
+import { ArrowRight, Check, ExternalLink, Eye, EyeOff, Lightbulb, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, HStack, Stack, Wrap } from 'styled-system/jsx';
 import { Board, type BoardColor } from '../components/Board';
 import { Clock } from '../components/Clock';
 import { GameLayout } from '../components/GameLayout';
 import { ChoiceGroup, Muted, Panel } from '../components/kit';
-import { Alert, Badge, Button, Heading, Link, Spinner, Text } from '../components/ui';
+import { Alert, Badge, Button, Heading, IconButton, Link, Spinner, Text } from '../components/ui';
 import { api, type Puzzle, type PuzzleStats } from '../lib/api';
 import { localQuery, localStats, recordLocal } from '../lib/localPuzzles';
 import { capturedFor, materialFromFen } from '../lib/material';
 import { getAccessKey, type Profile } from '../lib/profile';
-import { THEME_FILTERS, themeName } from '../lib/puzzleThemes';
+import { THEME_FILTERS, hintThemes, themeName } from '../lib/puzzleThemes';
 import type { Route } from '../lib/router';
+import { PUZZLE_THEMES_KEY, useStoredFlag } from '../lib/storedFlag';
 import { useMoveSound } from '../lib/useMoveSound';
 
 const THEME_KEY = 'faelchess:puzzleTheme';
@@ -32,6 +33,8 @@ function readTheme() {
 
 export function PuzzlePage({ profile, route }: { profile: Profile; route: Route }) {
   const [theme, setTheme] = useState(readTheme);
+  // Tema do problema visível enquanto resolve (o olhinho esconde; fica salvo no navegador).
+  const [showThemes, setShowThemes] = useStoredFlag(PUZZLE_THEMES_KEY, true);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   /** Quantos lances da linha já estão no tabuleiro (o 1º é do adversário). */
   const [step, setStep] = useState(0);
@@ -316,6 +319,33 @@ export function PuzzlePage({ profile, route }: { profile: Profile; route: Route 
               <Muted>Encontre o melhor lance para as {sideName}.</Muted>
             </Stack>
           )}
+          <Stack gap="1.5">
+            <HStack justify="space-between">
+              <Muted>Tema</Muted>
+              <IconButton
+                size="xs"
+                variant="plain"
+                aria-label={showThemes ? 'Esconder o tema' : 'Mostrar o tema'}
+                title={showThemes ? 'Esconder o tema' : 'Mostrar o tema'}
+                onClick={() => setShowThemes(!showThemes)}
+              >
+                {showThemes ? <Eye /> : <EyeOff />}
+              </IconButton>
+            </HStack>
+            {showThemes ? (
+              <Wrap gap="1.5">
+                {hintThemes(puzzle.themes).map((t) => (
+                  <Badge key={t} colorPalette="jade" variant="subtle" size="lg" borderRadius="full">
+                    {themeName(t)}
+                  </Badge>
+                ))}
+              </Wrap>
+            ) : (
+              <Text textStyle="sm" color="fg.subtle">
+                Tema escondido
+              </Text>
+            )}
+          </Stack>
           <Flex gap="2" flexWrap="wrap">
             <Button variant="surface" onClick={reveal} disabled={step === 0}>
               <Lightbulb /> Ver solução

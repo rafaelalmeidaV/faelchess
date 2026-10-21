@@ -241,7 +241,7 @@ export function HomePage({ profile }: { profile: Profile }) {
               <Divider />
               <Flex {...ACTION_ROW}>
                 {trainingSwitch}
-                <Button colorPalette="jade" size="lg" minW={{ base: 'full', sm: '48' }} onClick={playBot}>
+                <Button className="glass-btn" colorPalette="jade" size="lg" minW={{ base: 'full', sm: '48' }} onClick={playBot}>
                   <Play /> Jogar
                 </Button>
               </Flex>
@@ -270,7 +270,7 @@ export function HomePage({ profile }: { profile: Profile }) {
               <Divider />
               <Flex {...ACTION_ROW}>
                 {trainingSwitch}
-                <Button colorPalette="jade" size="lg" minW={{ base: 'full', sm: '48' }} onClick={playLocal}>
+                <Button className="glass-btn" colorPalette="jade" size="lg" minW={{ base: 'full', sm: '48' }} onClick={playLocal}>
                   <Play /> Começar
                 </Button>
               </Flex>
@@ -294,7 +294,7 @@ export function HomePage({ profile }: { profile: Profile }) {
                 <Text textStyle="sm" color="error">
                   {error}
                 </Text>
-                <Button colorPalette="jade" size="lg" minW={{ base: 'full', sm: '48' }} onClick={playOnline} loading={creating} loadingText="Criando…">
+                <Button className="glass-btn" colorPalette="jade" size="lg" minW={{ base: 'full', sm: '48' }} onClick={playOnline} loading={creating} loadingText="Criando…">
                   <Globe /> Criar convite
                 </Button>
               </Flex>

@@ -69,6 +69,20 @@ export function App() {
     flushUnsent().then((n) => n && setNotice(`${n} partida(s) guardada(s) foram enviadas para análise.`));
   }, []);
 
+  // O menu lateral desliza o tabuleiro sem redimensionar a janela, e o chessground guarda a posição do
+  // tabuleiro em cache: sem este aviso o clique cai na casa vizinha (e2 virava f2). Avisa a cada
+  // quadro enquanto o menu anima (a transição dura 0,18 s).
+  useEffect(() => {
+    let raf = 0;
+    const end = performance.now() + 300;
+    const tick = () => {
+      document.body.dispatchEvent(new Event('chessground.resize'));
+      if (performance.now() < end) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [sideOpen, route.path[0]]);
+
   const [section, id] = route.path;
   let page: React.ReactNode;
   if (!profile) page = <SettingsPage profile={null} onSaved={setProfile} />;

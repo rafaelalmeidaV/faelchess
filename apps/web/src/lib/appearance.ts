@@ -16,6 +16,8 @@ export interface Appearance {
   dests: boolean;
   /** Sons de lance, captura, xeque e fim de jogo. */
   sound: boolean;
+  /** Efeito de vidro acrílico (desfoque translúcido) nas superfícies que o usam. */
+  glass: boolean;
 }
 
 export const BOARD_PRESETS: { id: string; name: string; light: string; dark: string; highlight: string }[] = [
@@ -50,6 +52,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   coords: true,
   dests: true,
   sound: true,
+  glass: true,
 };
 
 const KEY = 'faelchess:appearance';
@@ -137,4 +140,12 @@ export function applyAppearance(a: Appearance) {
     document.head.appendChild(el);
   }
   el.textContent = appearanceCss(a);
+  // O CSS do vidro (styles.css) liga por este atributo. Quem pede "reduzir transparência" no sistema fica sem.
+  let reduced = false;
+  try {
+    reduced = window.matchMedia('(prefers-reduced-transparency: reduce)').matches;
+  } catch {
+    /* navegador sem suporte: segue o interruptor */
+  }
+  document.documentElement.dataset.glass = a.glass && !reduced ? 'on' : 'off';
 }

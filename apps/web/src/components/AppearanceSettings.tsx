@@ -151,6 +151,9 @@ export function AppearanceSettings() {
             <Check checked={a.sound} onChange={(v) => set({ sound: v })}>
               Sons das peças
             </Check>
+            <Check checked={a.glass} onChange={(v) => set({ glass: v })}>
+              Efeito de vidro (só no computador)
+            </Check>
             <Button type="button" variant="plain" size="xs" onClick={() => SAMPLE.forEach(([k, ms]) => setTimeout(() => playSound(k, true), ms))}>
               <Volume2 /> Ouvir
             </Button>

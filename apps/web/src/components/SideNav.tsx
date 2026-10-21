@@ -24,6 +24,7 @@ export function SideNav({ items, open, onToggle }: { items: NavItem[]; open: boo
   return (
     <Box
       as="aside"
+      className="glass-surface"
       hideBelow="lg"
       position="fixed"
       top="0"

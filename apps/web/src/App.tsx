@@ -92,7 +92,7 @@ export function App() {
   return (
     <div className={gameMode ? (sideOpen ? LAYOUT.gameOpen : LAYOUT.gameClosed) : LAYOUT.normal}>
       {gameMode && <SideNav items={navItems} open={sideOpen} onToggle={toggleSide} />}
-      <Box as="header" borderBottomWidth="1px" bg="gray.2" position="sticky" top="0" zIndex="sticky" hideFrom={gameMode ? 'lg' : undefined}>
+      <Box as="header" className="glass-surface glass-blur" borderBottomWidth="1px" bg="gray.2" position="sticky" top="0" zIndex="sticky" hideFrom={gameMode ? 'lg' : undefined}>
         <Container maxW="8xl" px={{ base: '3', md: '6' }}>
           <HStack h="14" justify="space-between">
             <a href="#/" className={hstack({ gap: '2', fontWeight: 'bold', textStyle: 'lg', letterSpacing: 'tight' })}>
@@ -128,7 +128,7 @@ export function App() {
         </Container>
       )}
       <Box style={{ marginLeft: 'var(--sidenav-w)' }} transition="margin-left 0.18s ease">
-        <Container as="main" maxW="8xl" pt={{ base: '3', md: '4' }} pb={{ base: '6', md: '8' }} px={{ base: '3', md: '6' }}>
+        <Container as="main" className="glass-scope" maxW="8xl" pt={{ base: '3', md: '4' }} pb={{ base: '6', md: '8' }} px={{ base: '3', md: '6' }}>
           {page}
         </Container>
       </Box>

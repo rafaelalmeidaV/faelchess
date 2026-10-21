@@ -6,7 +6,7 @@ import { Card, RadioCardGroup, Switch, Text } from './ui';
 /** Bloco de conteúdo padrão das telas (Card do Park UI com respiro interno). */
 export function Panel({ children, ...rest }: Card.RootProps) {
   return (
-    <Card.Root p={{ base: '4', md: '5' }} gap="4" overflow="visible" {...rest}>
+    <Card.Root className="panel" p={{ base: '4', md: '5' }} gap="4" overflow="visible" {...rest}>
       {children}
     </Card.Root>
   );

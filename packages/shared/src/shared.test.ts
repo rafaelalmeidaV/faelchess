@@ -172,6 +172,56 @@ describe('classifyMove', () => {
     expect(r.classification).toBe('best');
   });
 
+  describe('recaptura envenenada (partida real: 20.fxe5 Bxe5!, Brilhante no chess.com)', () => {
+    const fen = '1r1r2k1/1bpq1pb1/pp2p1pp/4P3/1P1P4/P1PQP1PP/3N3R/R1B1K3 b Q - 0 20';
+    const prevMove = { to: 'e5', captured: true };
+    const linesBefore = [
+      { pv: ['g7e5', 'e3e4', 'e5g7', 'c1b2'], eval: { cp: -368 } },
+      { pv: ['d7e7'], eval: { cp: -20 } },
+    ];
+
+    it('recaptura que oferece a peça e o engine não captura é Brilhante', () => {
+      const r = classifyMove({ fenBefore: fen, playedUci: 'g7e5', ply: 40, linesBefore, evalAfter: { cp: -365 }, lineAfter: ['e3e4', 'e5g7', 'c1b2'], prevMove });
+      expect(r.classification).toBe('brilliant');
+      expect(r.tags).toEqual(expect.arrayContaining(['recapture', 'only_move', 'sacrifice']));
+    });
+
+    it('se o engine captura a peça na linha principal, é só recaptura (Melhor)', () => {
+      const r = classifyMove({ fenBefore: fen, playedUci: 'g7e5', ply: 40, linesBefore, evalAfter: { cp: -365 }, lineAfter: ['d4e5', 'd7d3'], prevMove });
+      expect(r.classification).toBe('best');
+    });
+
+    it('sem ser o único lance bom, a recaptura segue sendo Melhor', () => {
+      const flat = [linesBefore[0], { pv: ['d7e7'], eval: { cp: -360 } }];
+      const r = classifyMove({ fenBefore: fen, playedUci: 'g7e5', ply: 40, linesBefore: flat, evalAfter: { cp: -365 }, lineAfter: ['e3e4', 'e5g7'], prevMove });
+      expect(r.classification).toBe('best');
+      expect(r.tags).not.toContain('only_move');
+    });
+
+    it('sem a linha do engine depois do lance, não arrisca Brilhante', () => {
+      const r = classifyMove({ fenBefore: fen, playedUci: 'g7e5', ply: 40, linesBefore, evalAfter: { cp: -365 }, prevMove });
+      expect(r.classification).not.toBe('brilliant');
+    });
+
+    it('recaptura comum (1.e4 d5 2.exd5 Qxd5) continua sem Brilhante', () => {
+      const chess = new Chess();
+      for (const san of ['e4', 'd5', 'exd5']) chess.move(san);
+      const r = classifyMove({
+        fenBefore: chess.fen(),
+        playedUci: 'd8d5',
+        ply: 4,
+        linesBefore: [
+          { pv: ['d8d5', 'b1c3'], eval: { cp: -10 } },
+          { pv: ['g8f6'], eval: { cp: -150 } },
+        ],
+        evalAfter: { cp: -10 },
+        lineAfter: ['b1c3'],
+        prevMove: { to: 'd5', captured: true },
+      });
+      expect(r.classification).not.toBe('brilliant');
+    });
+  });
+
   it('marca peça pendurada', () => {
     // 1.e4 e5 2.Qh5?? Nc6 3.Qxe5+?? Nxe5: a dama cai.
     const fen = 'r1bqkbnr/pppp1ppp/2n5/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 2 3';

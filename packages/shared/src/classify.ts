@@ -141,9 +141,15 @@ export function classifyMove(input: ClassifyInput): MoveAnalysis {
   let classification: Classification = isBest ? 'best' : lossToClassification(winPctLoss);
   if (!isBest) classification = worse(classification, mateJudgement(best.eval, evalAfter, color));
 
+  // Recaptura comum (Qxd5 depois de exd5) nunca é Brilhante. Exceção: a recaptura deixa a peça atacada por
+  // uma de menor valor, é o único lance bom e o engine NÃO a captura na linha principal (captura envenenada,
+  // ex.: 20.fxe5 Bxe5! com dxe5 perdendo a dama). O chess.com premia esse lance.
+  const poisonedRecapture =
+    isRecapture && sacrifice && onlyMove && !!input.lineAfter?.length && input.lineAfter[0].slice(2, 4) !== mv.to;
+
   if (
     sacrifice &&
-    !isRecapture &&
+    (!isRecapture || poisonedRecapture) &&
     legalMoves >= 2 &&
     winPctLoss < LOSS_THRESHOLDS.excellent &&
     winPctAfter >= BRILLIANT_MIN_WINPCT_AFTER &&

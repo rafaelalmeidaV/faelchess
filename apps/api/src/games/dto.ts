@@ -11,6 +11,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -123,10 +124,24 @@ export class CreateGameDto implements CreateGameInput {
   finishedAt: string;
 }
 
+export class FavoriteDto {
+  @IsString()
+  @Matches(/^[a-z0-9_-]{1,40}$/i)
+  userId: string;
+
+  @IsBoolean()
+  favorite: boolean;
+}
+
 export class ListGamesQuery {
   @IsOptional()
   @IsString()
   userId?: string;
+
+  /** "true": só as favoritas de `userId`. */
+  @IsOptional()
+  @IsIn(['true'])
+  favorite?: 'true';
 
   @IsOptional()
   @IsIn(['bot', 'local', 'online', 'chesscom'])

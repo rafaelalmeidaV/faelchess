@@ -2,7 +2,8 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Box, Flex, HStack, Stack } from 'styled-system/jsx';
 import { ChoiceGroup, Muted, Panel, ToggleSwitch } from '../components/kit';
-import { Alert, Badge, Button, Heading, Spinner, Table, Text } from '../components/ui';
+import { FavoriteStar } from '../components/FavoriteStar';
+import { Alert, Badge, Button, Heading, Spinner, Table, Text, toaster } from '../components/ui';
 import { api, type GameSummary } from '../lib/api';
 import type { Profile } from '../lib/profile';
 import { navigate } from '../lib/router';
@@ -43,16 +44,44 @@ export function HistoryPage({ profile }: { profile: Profile }) {
   const [error, setError] = useState('');
   const [mine, setMine] = useState(true);
   const [filter, setFilter] = useState<Filter>('all');
+  const [onlyFav, setOnlyFav] = useState(false);
 
   useEffect(() => {
     api
-      .listGames({ userId: mine ? profile.userId : undefined, type: filter === 'all' ? undefined : filter, limit: PAGE, skip })
+      .listGames({
+        // Favoritas são de quem favoritou, então precisam do userId mesmo com "Só as minhas" desligado.
+        userId: mine || onlyFav ? profile.userId : undefined,
+        favorite: onlyFav ? 'true' : undefined,
+        type: filter === 'all' ? undefined : filter,
+        limit: PAGE,
+        skip,
+      })
       .then((r) => {
         setItems(r.items);
         setTotal(r.total);
       })
       .catch((e) => setError((e as Error).message));
-  }, [skip, mine, filter, profile.userId]);
+  }, [skip, mine, filter, onlyFav, profile.userId]);
+
+  // Otimista: a estrela muda na hora e volta se a API recusar.
+  const toggleFav = async (g: GameSummary) => {
+    const was = !!g.favoritedBy?.includes(profile.userId);
+    const set = (fav: boolean) =>
+      setItems((list) =>
+        list?.map((x) =>
+          x._id === g._id
+            ? { ...x, favoritedBy: fav ? [...new Set([...(x.favoritedBy ?? []), profile.userId])] : (x.favoritedBy ?? []).filter((u) => u !== profile.userId) }
+            : x,
+        ) ?? null,
+      );
+    set(!was);
+    try {
+      await api.setFavorite(g._id, profile.userId, !was);
+    } catch (e) {
+      set(was);
+      toaster.create({ title: 'Não deu para favoritar', description: (e as Error).message, type: 'error' });
+    }
+  };
 
   if (error)
     return (
@@ -102,6 +131,15 @@ export function HistoryPage({ profile }: { profile: Profile }) {
             }}
             label="Só as minhas"
           />
+          <ToggleSwitch
+            size="sm"
+            checked={onlyFav}
+            onChange={(v) => {
+              setSkip(0);
+              setOnlyFav(v);
+            }}
+            label="Só favoritas"
+          />
         </Flex>
       </Flex>
 
@@ -111,12 +149,15 @@ export function HistoryPage({ profile }: { profile: Profile }) {
             <Spinner size="sm" /> Carregando…
           </HStack>
         ) : items.length === 0 ? (
-          <Muted p="5">Nenhuma partida ainda.</Muted>
+          <Muted p="5">
+            {onlyFav ? 'Nenhuma favorita ainda. Toque na estrela de uma partida para achá-la rápido aqui.' : 'Nenhuma partida ainda.'}
+          </Muted>
         ) : (
           <Table.Root interactive css={{ '& td, & th': { px: '4' }, whiteSpace: 'nowrap' }}>
             <Table.Head>
               <Table.Row>
                 <Table.Header w="12" />
+                <Table.Header w="12" aria-label="Favorita" />
                 <Table.Header>Adversário</Table.Header>
                 <Table.Header hideBelow="md">Abertura</Table.Header>
                 <Table.Header hideBelow="lg">Ritmo</Table.Header>
@@ -140,6 +181,9 @@ export function HistoryPage({ profile }: { profile: Profile }) {
                       <Badge colorPalette={OUTCOME_PALETTE[o.kind]} size="2xl" w="7" justifyContent="center" fontWeight="extrabold" title={o.text}>
                         {o.short}
                       </Badge>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <FavoriteStar active={!!g.favoritedBy?.includes(profile.userId)} onToggle={() => toggleFav(g)} />
                     </Table.Cell>
                     <Table.Cell>
                       <Stack gap="0">

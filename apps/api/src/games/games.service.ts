@@ -29,6 +29,7 @@ const SUMMARY_PROJECTION = {
   finishedAt: 1,
   opening: 1,
   analysisStatus: 1,
+  favoritedBy: 1,
   'analysis.accuracy': 1,
   'analysis.counts': 1,
   plyCount: { $size: '$moves' },
@@ -129,7 +130,9 @@ export class GamesService {
 
   async list(q: ListGamesQuery) {
     const filter: Filter<GameDoc> = {};
-    if (q.userId) filter.userIds = q.userId;
+    // Favoritas são de quem favoritou (pode ser uma partida que a pessoa só assistiu): ignora "participou".
+    if (q.userId && q.favorite) filter.favoritedBy = q.userId;
+    else if (q.userId) filter.userIds = q.userId;
     if (q.type) filter.type = q.type;
     if (q.result) filter.result = q.result;
     if (q.analysisStatus) filter.analysisStatus = q.analysisStatus;
@@ -150,6 +153,16 @@ export class GamesService {
     const game = await this.db.games.findOne({ _id: id });
     if (!game) throw new NotFoundException('Partida não encontrada');
     return game;
+  }
+
+  /** Marca ou desmarca a análise como favorita de um jogador. Idempotente: repetir não duplica. */
+  async setFavorite(id: string, userId: string, favorite: boolean) {
+    const res = await this.db.games.updateOne(
+      { _id: id },
+      favorite ? { $addToSet: { favoritedBy: userId } } : { $pull: { favoritedBy: userId } },
+    );
+    if (res.matchedCount === 0) throw new NotFoundException('Partida não encontrada');
+    return { ok: true, favorite };
   }
 
   /** Volta a partida para a fila (ex.: depois de mudar as faixas de classificação). */

@@ -158,6 +158,8 @@ export interface GameDoc {
   black: PlayerInfo;
   /** userIds presentes na partida, para filtrar "minhas partidas" com um índice só. */
   userIds: string[];
+  /** userIds que marcaram a análise como favorita (cada jogador favorita por conta própria). */
+  favoritedBy?: string[];
   result: GameResult;
   termination: Termination;
   startFen?: string;

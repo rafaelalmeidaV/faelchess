@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
-import { CreateGameDto, ListGamesQuery } from './dto';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
+import { CreateGameDto, FavoriteDto, ListGamesQuery } from './dto';
 import { GamesService } from './games.service';
 
 @Controller('games')
@@ -26,6 +26,13 @@ export class GamesController {
   @Get(':id')
   get(@Param('id') id: string) {
     return this.games.get(id);
+  }
+
+  /** Favoritar / desfavoritar (exige a chave de acesso, como o resto). */
+  @Put(':id/favorite')
+  @HttpCode(200)
+  favorite(@Param('id') id: string, @Body() dto: FavoriteDto) {
+    return this.games.setFavorite(id, dto.userId, dto.favorite);
   }
 
   @Post(':id/reanalyze')

@@ -41,6 +41,8 @@ export class Collections implements OnModuleInit {
       { key: { analysisStatus: 1, createdAt: 1 } },
       // "Minhas partidas" e filtros do MCP.
       { key: { userIds: 1, finishedAt: -1 } },
+      // Lista de favoritas de um jogador.
+      { key: { favoritedBy: 1, finishedAt: -1 } },
       { key: { 'white.userId': 1 } },
       { key: { 'black.userId': 1 } },
       { key: { 'opening.eco': 1 } },

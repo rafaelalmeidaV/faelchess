@@ -6,7 +6,7 @@ export type Game = Jsonified<GameDoc>;
 export interface GameSummary
   extends Pick<
     Game,
-    '_id' | 'type' | 'white' | 'black' | 'result' | 'termination' | 'timeControl' | 'startedAt' | 'finishedAt' | 'analysisStatus'
+    '_id' | 'type' | 'white' | 'black' | 'result' | 'termination' | 'timeControl' | 'startedAt' | 'finishedAt' | 'analysisStatus' | 'favoritedBy'
   > {
   opening?: OpeningInfo;
   analysis?: Pick<Jsonified<GameAnalysisSummary>, 'accuracy' | 'counts'>;
@@ -55,11 +55,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const api = {
   createGame: (input: CreateGameInput) =>
     request<{ id: string; analysisStatus: string }>('/games', { method: 'POST', body: JSON.stringify(input) }),
-  listGames: (params: { userId?: string; type?: string; limit?: number; skip?: number } = {}) => {
+  listGames: (params: { userId?: string; type?: string; favorite?: 'true'; limit?: number; skip?: number } = {}) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
     return request<{ items: GameSummary[]; total: number }>(`/games?${q}`);
   },
+  setFavorite: (id: string, userId: string, favorite: boolean) =>
+    request<{ ok: true; favorite: boolean }>(`/games/${encodeURIComponent(id)}/favorite`, {
+      method: 'PUT',
+      body: JSON.stringify({ userId, favorite }),
+    }),
   getGame: (id: string) => request<Game>(`/games/${encodeURIComponent(id)}`),
   reanalyze: (id: string) => request<{ ok: true }>(`/games/${encodeURIComponent(id)}/reanalyze`, { method: 'POST' }),
   deleteGame: (id: string) => request<{ ok: true }>(`/games/${encodeURIComponent(id)}`, { method: 'DELETE' }),

@@ -17,6 +17,7 @@ import { Clock } from '../components/Clock';
 import { EvalGraph } from '../components/EvalGraph';
 import { GameLayout } from '../components/GameLayout';
 import { Muted, Panel } from '../components/kit';
+import { FavoriteStar } from '../components/FavoriteStar';
 import { MoveCardButton } from '../components/MoveCardButton';
 import { MoveFeedback, San } from '../components/MoveFeedback';
 import { MoveList } from '../components/MoveList';
@@ -51,6 +52,24 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
   const [index, setIndex] = useState(-1);
   const [orientation, setOrientation] = useState<BoardColor>('white');
   const [showBest, setShowBest] = useState(true);
+
+  const favorite = !!game?.favoritedBy?.includes(profile.userId);
+  // Otimista: a estrela muda na hora e volta se a API recusar.
+  const toggleFavorite = async () => {
+    if (!game) return;
+    const was = favorite;
+    const set = (fav: boolean) =>
+      setGame((g) =>
+        g ? { ...g, favoritedBy: fav ? [...new Set([...(g.favoritedBy ?? []), profile.userId])] : (g.favoritedBy ?? []).filter((u) => u !== profile.userId) } : g,
+      );
+    set(!was);
+    try {
+      await api.setFavorite(game._id, profile.userId, !was);
+    } catch (e) {
+      set(was);
+      toaster.create({ title: 'Não deu para favoritar', description: (e as Error).message, type: 'error' });
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -187,10 +206,13 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
           <Heading as="h2" textStyle={{ base: 'lg', md: 'xl' }}>
             {resultText(game.result, game.termination, game.white.name, game.black.name)}
           </Heading>
-          <Badge colorPalette={STATUS[status].palette} size="lg" borderRadius="full" flexShrink="0">
-            {status === 'processing' && <Spinner size="xs" />}
-            {STATUS[status].label}
-          </Badge>
+          <HStack gap="1" flexShrink="0">
+            <FavoriteStar active={favorite} onToggle={toggleFavorite} />
+            <Badge colorPalette={STATUS[status].palette} size="lg" borderRadius="full">
+              {status === 'processing' && <Spinner size="xs" />}
+              {STATUS[status].label}
+            </Badge>
+          </HStack>
         </HStack>
         <Muted>
           {new Date(game.finishedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}

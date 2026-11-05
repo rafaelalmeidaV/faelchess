@@ -6,11 +6,17 @@ import {
   uciLineToSan,
   winPctWhite,
   type Eval,
+  playInSandbox,
+  sandboxFen,
+  selectInSandbox,
+  startSandbox,
+  type Sandbox,
+  undoSandbox,
 } from '@faelchess/shared';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, RefreshCw, Repeat2, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Divider, Flex, Grid, HStack } from 'styled-system/jsx';
 import { Board, type BoardColor } from '../components/Board';
 import { Clock } from '../components/Clock';
@@ -24,6 +30,8 @@ import { MoveList } from '../components/MoveList';
 import { Alert, Badge, Button, Checkbox, Heading, IconButton, Link, Spinner, Table, Text, toaster } from '../components/ui';
 import { api, type Game } from '../lib/api';
 import { capturedFor, materialFromFen } from '../lib/material';
+import { playSound, soundForSan } from '../lib/sound';
+import { sandboxMoveLabel, useSandboxEngine } from '../lib/useSandboxEngine';
 import { useMoveSound } from '../lib/useMoveSound';
 import type { Profile } from '../lib/profile';
 import { navigate } from '../lib/router';
@@ -52,6 +60,14 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
   const [index, setIndex] = useState(-1);
   const [orientation, setOrientation] = useState<BoardColor>('white');
   const [showBest, setShowBest] = useState(true);
+  // Sandbox: ramificação a partir de um lance real, só na memória. Qualquer navegação pela partida a apaga.
+  const [sandbox, setSandbox] = useState<Sandbox | null>(null);
+  const sandboxRef = useRef(sandbox);
+  sandboxRef.current = sandbox;
+  const go = useCallback((v: number | ((i: number) => number)) => {
+    setSandbox(null);
+    setIndex(v);
+  }, []);
 
   const favorite = !!game?.favoritedBy?.includes(profile.userId);
   // Otimista: a estrela muda na hora e volta se a API recusar.
@@ -103,22 +119,64 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === 'ArrowLeft') setIndex((i) => Math.max(-1, i - 1));
-      else if (e.key === 'ArrowRight') setIndex((i) => Math.min(n - 1, i + 1));
-      else if (e.key === 'Home') setIndex(-1);
-      else if (e.key === 'End') setIndex(n - 1);
+      if (e.key === 'ArrowLeft') go((i) => Math.max(-1, i - 1));
+      else if (e.key === 'ArrowRight') go((i) => Math.min(n - 1, i + 1));
+      else if (e.key === 'Home') go(-1);
+      else if (e.key === 'End') go(n - 1);
+      else if (e.key === 'Escape' && sandboxRef.current) setSandbox(null);
       else if (e.key === 'f') setOrientation((o) => (o === 'white' ? 'black' : 'white'));
       else return;
       e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [n]);
+  }, [n, go]);
 
   useMoveSound(moves, index);
   const move = index >= 0 ? moves[index] : undefined;
   const startFen = game?.startFen ?? START_FEN;
   const fen = move ? move.fenAfter : startFen;
+  const shownFen = sandbox ? sandboxFen(sandbox) : fen;
+  // O lance real anterior ao desvio: só para saber se o primeiro lance do sandbox é uma recaptura.
+  const realPrev = useMemo(() => (sandbox && sandbox.base >= 0 ? moves[sandbox.base] : undefined), [sandbox?.base, moves]);
+  const { eval: sbEval, best: sbBest, thinking: sbThinking, classes: sbClasses } = useSandboxEngine(sandbox, realPrev);
+  const sbCurrent = sandbox ? sbClasses[sandbox.cursor] : null;
+  const sandboxShapes = useMemo<DrawShape[]>(() => {
+    const out: DrawShape[] = [];
+    // Selo do lance (!, ?, ??...) na casa de destino, como na partida real.
+    if (sandbox && sbCurrent) {
+      out.push({ orig: sandbox.moves[sandbox.cursor].uci.slice(2, 4) as Key, customSvg: { html: badgeSvg(sbCurrent.classification) } });
+    }
+    if (showBest && sbBest) out.push({ orig: sbBest.slice(0, 2) as Key, dest: sbBest.slice(2, 4) as Key, brush: 'blue' });
+    return out;
+  }, [sandbox, sbCurrent, sbBest, showBest]);
+
+  // Estável entre renderizações (o sandbox renderiza a tela mais vezes): o gráfico não recalcula à toa.
+  const graphPoints = useMemo(
+    () =>
+      moves.map((m) => ({
+        san: m.san,
+        label: `${Math.ceil(m.ply / 2)}${m.color === 'w' ? '.' : '...'} ${m.san}`,
+        eval: m.evalAfter,
+        classification: m.classification,
+      })),
+    [moves],
+  );
+
+  // Mexer uma peça: se for o lance que realmente aconteceu, segue a partida; se for outro, abre (ou continua) o sandbox.
+  const onBoardMove = (uci: string) => {
+    const next = sandbox
+      ? playInSandbox(sandbox, uci)
+      : moves[index + 1]?.uci === uci
+        ? null
+        : startSandbox(fen, index, uci);
+    if (next) {
+      setSandbox(next);
+      playSound(soundForSan(next.moves[next.cursor].san));
+    } else if (!sandbox && moves[index + 1]?.uci === uci) {
+      setIndex(index + 1);
+    }
+  };
 
   const shapes = useMemo<DrawShape[]>(() => {
     if (!move?.classification) return [];
@@ -165,16 +223,16 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
 
   const navButtons = (
     <HStack gap="2" justify="center" flexWrap="wrap">
-      <IconButton variant="surface" aria-label="Início" title="Início (Home)" onClick={() => setIndex(-1)}>
+      <IconButton variant="surface" aria-label="Início" title="Início (Home)" onClick={() => go(-1)}>
         <ChevronsLeft />
       </IconButton>
-      <IconButton variant="surface" aria-label="Anterior" title="Anterior (←)" onClick={() => setIndex((i) => Math.max(-1, i - 1))}>
+      <IconButton variant="surface" aria-label="Anterior" title="Anterior (←)" onClick={() => go((i) => Math.max(-1, i - 1))}>
         <ChevronLeft />
       </IconButton>
-      <IconButton variant="surface" aria-label="Próximo" title="Próximo (→)" onClick={() => setIndex((i) => Math.min(n - 1, i + 1))}>
+      <IconButton variant="surface" aria-label="Próximo" title="Próximo (→)" onClick={() => go((i) => Math.min(n - 1, i + 1))}>
         <ChevronRight />
       </IconButton>
-      <IconButton variant="surface" aria-label="Fim" title="Fim (End)" onClick={() => setIndex(n - 1)}>
+      <IconButton variant="surface" aria-label="Fim" title="Fim (End)" onClick={() => go(n - 1)}>
         <ChevronsRight />
       </IconButton>
       <Button variant="surface" title="Virar (f)" onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))}>
@@ -183,7 +241,7 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
     </HStack>
   );
 
-  const material = materialFromFen(fen);
+  const material = materialFromFen(shownFen);
   const topColor = orientation === 'white' ? 'b' : 'w';
   const bottomColor = orientation === 'white' ? 'w' : 'b';
 
@@ -191,8 +249,21 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
     <>
       <Clock name={withRating(orientation === 'white' ? game.black : game.white)} userId={(orientation === 'white' ? game.black : game.white).userId} active={false} captured={capturedFor(material, topColor)} />
       <HStack gap="2" alignItems="stretch">
-        <EvalBar value={status === 'done' ? evalNow : undefined} orientation={orientation} />
-        <Board fen={fen} orientation={orientation} lastMove={move ? [move.uci.slice(0, 2), move.uci.slice(2, 4)] : undefined} shapes={shapes} />
+        <EvalBar value={sandbox ? sbEval : status === 'done' ? evalNow : undefined} orientation={orientation} />
+        <Board
+          fen={shownFen}
+          orientation={orientation}
+          movable="both"
+          onMove={onBoardMove}
+          lastMove={
+            sandbox
+              ? [sandbox.moves[sandbox.cursor].uci.slice(0, 2), sandbox.moves[sandbox.cursor].uci.slice(2, 4)]
+              : move
+                ? [move.uci.slice(0, 2), move.uci.slice(2, 4)]
+                : undefined
+          }
+          shapes={sandbox ? sandboxShapes : shapes}
+        />
       </HStack>
       <Clock name={withRating(orientation === 'white' ? game.white : game.black)} userId={(orientation === 'white' ? game.white : game.black).userId} active={false} captured={capturedFor(material, bottomColor)} />
       <Box hideFrom="lg">{navButtons}</Box>
@@ -289,7 +360,27 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
           </Panel>
         )}
 
-        {move?.classification ? (
+        {sandbox ? (
+          sbCurrent && (
+            <MoveFeedback
+              cls={sbCurrent.classification}
+              title={sandboxMoveLabel(sandbox, sandbox.cursor)}
+              subtitle={
+                <>
+                  {formatEval(sbCurrent.evalAfter)} · precisão {sbCurrent.accuracy} · sandbox
+                </>
+              }
+              best={
+                sbCurrent.bestMoveSan && (
+                  <>
+                    Melhor era <San>{sbCurrent.bestMoveSan}</San> ({formatEval(sbCurrent.bestEval)}) · perdeu {sbCurrent.winPctLoss}%
+                  </>
+                )
+              }
+              tags={(sbCurrent.tags ?? []).map((t) => TAG_PT[t] ?? t)}
+            />
+          )
+        ) : move?.classification ? (
           <MoveFeedback
             cls={move.classification}
             action={(() => {
@@ -347,14 +438,9 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
             )}
           </HStack>
           <EvalGraph
-            points={moves.map((m) => ({
-              san: m.san,
-              label: `${Math.ceil(m.ply / 2)}${m.color === 'w' ? '.' : '...'} ${m.san}`,
-              eval: m.evalAfter,
-              classification: m.classification,
-            }))}
+            points={graphPoints}
             current={index}
-            onSelect={setIndex}
+            onSelect={go}
           />
         </Panel>
       )}
@@ -363,7 +449,27 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
         <Box hideBelow="lg" pt="1">
           {navButtons}
         </Box>
-        <MoveList moves={moves} current={index} onSelect={setIndex} startsWithBlack={moves[0]?.color === 'b'} />
+        <MoveList
+          moves={moves}
+          current={index}
+          onSelect={go}
+          startsWithBlack={moves[0]?.color === 'b'}
+          branch={
+            sandbox
+              ? {
+                  base: sandbox.base,
+                  // Aparece depois do lance real que foi substituído (se o desvio foi no fim, depois do último).
+                  at: sandbox.base + 1 < n ? sandbox.base + 1 : sandbox.base,
+                  moves: sandbox.moves.map((m, i) => ({ san: m.san, classification: sbClasses[i]?.classification })),
+                  current: sandbox.cursor,
+                  thinking: sbThinking,
+                  onSelect: (i) => setSandbox(selectInSandbox(sandbox, i)),
+                  onUndo: () => setSandbox(undoSandbox(sandbox)),
+                  onExit: () => setSandbox(null),
+                }
+              : undefined
+          }
+        />
         <Divider />
         <Flex gap="2" flexWrap="wrap" align="center" justify="space-between" px="2" pb="1">
           <Checkbox.Root size="sm" colorPalette="jade" checked={showBest} onCheckedChange={(d) => setShowBest(d.checked === true)}>

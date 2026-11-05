@@ -2,6 +2,12 @@ import { Chess } from 'chess.js';
 import { describe, expect, it } from 'vitest';
 import {
   PUZZLE_START_RATING,
+  branchTokens,
+  playInSandbox,
+  sandboxFen,
+  selectInSandbox,
+  startSandbox,
+  undoSandbox,
   PUZZLE_START_RD,
   START_FEN,
   glickoUpdate,
@@ -329,5 +335,66 @@ describe('detectSacrifice: falsos brilhantes encontrados em partidas reais', () 
     const fen = '1k1r2r1/1pp1qpbp/3p1nb1/1N1Pp2p/2B1P2Q/1P3PN1/P1P4P/2KR2R1 w - - 0 20';
     expect(detectSacrifice(fen, 'g3f5', ['g6f5', 'h4f2', 'b7b6', 'e4f5'])).toBe(false);
     expect(detectSacrifice(fen, 'g3f5', ['g6f5', 'h4f2', 'g7h6', 'c1b1', 'b7b6', 'e4f5'])).toBe(false);
+  });
+});
+
+describe('sandbox da análise', () => {
+  it('começa com um lance legal e recusa lance ilegal', () => {
+    const sb = startSandbox(START_FEN, -1, 'e2e4');
+    expect(sb?.moves.map((m) => m.san)).toEqual(['e4']);
+    expect(sb?.base).toBe(-1);
+    expect(sb?.cursor).toBe(0);
+    expect(startSandbox(START_FEN, -1, 'e2e5')).toBeNull();
+    expect(startSandbox(START_FEN, -1, 'e7e5')).toBeNull(); // vez das brancas
+  });
+
+  it('joga dos dois lados em sequência', () => {
+    let sb = startSandbox(START_FEN, -1, 'e2e4')!;
+    sb = playInSandbox(sb, 'e7e5')!;
+    sb = playInSandbox(sb, 'g1f3')!;
+    expect(sb.moves.map((m) => m.san)).toEqual(['e4', 'e5', 'Nf3']);
+    expect(sb.cursor).toBe(2);
+    expect(sandboxFen(sb)).toBe(sb.moves[2].fen);
+    expect(playInSandbox(sb, 'a1a8')).toBeNull(); // ilegal: a torre está bloqueada
+  });
+
+  it('voltar na ramificação e jogar outro lance descarta o resto', () => {
+    let sb = startSandbox(START_FEN, -1, 'e2e4')!;
+    sb = playInSandbox(sb, 'e7e5')!;
+    sb = playInSandbox(sb, 'g1f3')!;
+    sb = selectInSandbox(sb, 0); // olhando o 1.e4
+    expect(sb.moves).toHaveLength(3); // selecionar não apaga
+    sb = playInSandbox(sb, 'c7c5')!; // 1...c5 no lugar de 1...e5
+    expect(sb.moves.map((m) => m.san)).toEqual(['e4', 'c5']);
+    expect(sb.cursor).toBe(1);
+  });
+
+  it('desfazer volta um lance e, no primeiro, sai do sandbox', () => {
+    let sb = startSandbox(START_FEN, -1, 'd2d4')!;
+    sb = playInSandbox(sb, 'd7d5')!;
+    const back = undoSandbox(sb)!;
+    expect(back.moves.map((m) => m.san)).toEqual(['d4']);
+    expect(back.cursor).toBe(0);
+    expect(undoSandbox(back)).toBeNull();
+  });
+
+  it('aceita promoção e a mostra na notação', () => {
+    const fen = '8/P6k/8/8/8/8/8/K7 w - - 0 1';
+    const sb = startSandbox(fen, 10, 'a7a8q')!;
+    expect(sb.moves[0].san).toBe('a8=Q');
+    expect(startSandbox(fen, 10, 'a7a8')).toBeNull(); // sem a peça da promoção é lance inválido
+  });
+
+  it('numera a ramificação como uma variante', () => {
+    // Desvio no 21º lance das brancas (índice real 40): o último lance real antes dele é o 20... (índice 39).
+    const t = branchTokens(39, false, ['dxe5', 'Qxd3', 'e2', 'Nc3']);
+    expect(t.map((x) => x.number)).toEqual(['21.', undefined, '22.', undefined]);
+    // Desvio num lance das pretas: abre com reticências.
+    const b = branchTokens(40, false, ['Qd5', 'Nc3', 'Qe6']);
+    expect(b.map((x) => x.number)).toEqual(['21...', '22.', undefined]);
+    // Partida que começa com as pretas (posição personalizada).
+    const c = branchTokens(-1, true, ['e5', 'Nf3']);
+    expect(c.map((x) => x.number)).toEqual(['1...', '2.']);
+    expect(branchTokens(-1, false, ['e4', 'e5']).map((x) => x.number)).toEqual(['1.', undefined]);
   });
 });

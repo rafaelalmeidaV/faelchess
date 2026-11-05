@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Box, HStack, Stack } from 'styled-system/jsx';
 import { loadAppearance } from '../lib/appearance';
 import type { CapturedType } from '../lib/material';
+import { avatarUrl } from '../lib/avatar';
 import { Avatar, Text } from './ui';
 
 export interface CapturedInfo {
@@ -65,6 +66,7 @@ export function Clock({
   name,
   sub,
   avatar,
+  userId,
   captured,
 }: {
   ms?: number;
@@ -73,13 +75,16 @@ export function Clock({
   sub?: ReactNode;
   /** Conteúdo do avatar (inicial ou ícone); por padrão a inicial do nome. */
   avatar?: ReactNode;
+  /** Quem joga: se tiver foto no servidor ela aparece; sem foto (404) fica a inicial. */
+  userId?: string;
   captured?: CapturedInfo;
 }) {
   const low = ms !== undefined && ms < 20_000;
   return (
     <HStack justify="space-between" w="var(--board-size)" maxW="full" gap="3">
       <HStack gap="2.5" minW="0">
-        <Avatar.Root size="sm" colorPalette={active ? 'jade' : 'gray'} variant={active ? 'solid' : 'subtle'} borderRadius="l2">
+        <Avatar.Root key={userId ?? ''} size="sm" colorPalette={active ? 'jade' : 'gray'} variant={active ? 'solid' : 'subtle'} borderRadius="l2">
+          {userId && !avatar && <Avatar.Image src={avatarUrl(userId)} alt="" />}
           <Avatar.Fallback>{avatar ?? name.trim().charAt(0).toUpperCase()}</Avatar.Fallback>
         </Avatar.Root>
         <Stack gap="0" minW="0">

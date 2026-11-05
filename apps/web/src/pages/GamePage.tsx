@@ -169,12 +169,12 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
 
   const board = (
     <>
-      <Clock name={withRating(orientation === 'white' ? game.black : game.white)} active={false} captured={capturedFor(material, topColor)} />
+      <Clock name={withRating(orientation === 'white' ? game.black : game.white)} userId={(orientation === 'white' ? game.black : game.white).userId} active={false} captured={capturedFor(material, topColor)} />
       <HStack gap="2" alignItems="stretch">
         <EvalBar value={status === 'done' ? evalNow : undefined} orientation={orientation} />
         <Board fen={fen} orientation={orientation} lastMove={move ? [move.uci.slice(0, 2), move.uci.slice(2, 4)] : undefined} shapes={shapes} />
       </HStack>
-      <Clock name={withRating(orientation === 'white' ? game.white : game.black)} active={false} captured={capturedFor(material, bottomColor)} />
+      <Clock name={withRating(orientation === 'white' ? game.white : game.black)} userId={(orientation === 'white' ? game.white : game.black).userId} active={false} captured={capturedFor(material, bottomColor)} />
       <Box hideFrom="lg">{navButtons}</Box>
     </>
   );

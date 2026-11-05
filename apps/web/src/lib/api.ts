@@ -81,4 +81,7 @@ export const api = {
       body: JSON.stringify({ userId, win }),
     }),
   puzzleStats: (userId: string) => request<PuzzleStats>(`/puzzles/stats?${new URLSearchParams({ userId })}`),
+  setAvatar: (userId: string, image: string) =>
+    request<{ ok: true }>(`/profiles/${encodeURIComponent(userId)}/avatar`, { method: 'PUT', body: JSON.stringify({ image }) }),
+  removeAvatar: (userId: string) => request<{ ok: true }>(`/profiles/${encodeURIComponent(userId)}/avatar`, { method: 'DELETE' }),
 };

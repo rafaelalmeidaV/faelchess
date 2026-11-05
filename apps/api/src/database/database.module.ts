@@ -1,9 +1,18 @@
 import { Global, Inject, Injectable, Logger, Module, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { GameDoc, PositionDoc, PuzzleAttemptDoc, PuzzleDoc, PuzzleRatingDoc } from '@faelchess/shared';
-import { Collection, Db, MongoClient } from 'mongodb';
+import { Binary, Collection, Db, MongoClient } from 'mongodb';
 
 export const MONGO_CLIENT = Symbol('MONGO_CLIENT');
+
+/** Perfil guardado no banco (hoje só a foto): o nome e o id continuam no navegador. */
+export interface ProfileDoc {
+  /** userId em minúsculas. */
+  _id: string;
+  avatar?: Binary;
+  avatarType?: string;
+  updatedAt: Date;
+}
 
 @Injectable()
 export class Collections implements OnModuleInit {
@@ -14,6 +23,7 @@ export class Collections implements OnModuleInit {
   readonly puzzles: Collection<PuzzleDoc>;
   readonly puzzleAttempts: Collection<PuzzleAttemptDoc>;
   readonly puzzleRatings: Collection<PuzzleRatingDoc>;
+  readonly profiles: Collection<ProfileDoc>;
 
   constructor(@Inject(MONGO_CLIENT) client: MongoClient, config: ConfigService) {
     this.db = client.db(config.get('MONGODB_DB', 'faelchess'));
@@ -22,6 +32,7 @@ export class Collections implements OnModuleInit {
     this.puzzles = this.db.collection<PuzzleDoc>('puzzles');
     this.puzzleAttempts = this.db.collection<PuzzleAttemptDoc>('puzzle_attempts');
     this.puzzleRatings = this.db.collection<PuzzleRatingDoc>('puzzle_ratings');
+    this.profiles = this.db.collection<ProfileDoc>('profiles');
   }
 
   async onModuleInit() {

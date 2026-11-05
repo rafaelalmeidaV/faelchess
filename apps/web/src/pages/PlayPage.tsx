@@ -176,6 +176,7 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
   const top: Color = orientation === 'white' ? 'b' : 'w';
   const bottom: Color = top === 'w' ? 'b' : 'w';
   const nameOf = (c: Color) => (c === 'w' ? config.white.name : config.black.name);
+  const userIdOf = (c: Color) => (c === 'w' ? config.white.userId : config.black.userId);
   const myColor: Color | undefined = isBot ? me : undefined;
 
   const moveItems = game.moves.map((m, i) => ({
@@ -224,6 +225,7 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
     <>
       <Clock
         name={nameOf(top)}
+        userId={userIdOf(top)}
         sub={subOf(top)}
         captured={capturedFor(material, top)}
         avatar={isBot && top === botColor ? <Bot /> : undefined}
@@ -241,6 +243,7 @@ export function PlayPage({ route, profile }: { route: Route; profile: Profile })
       />
       <Clock
         name={nameOf(bottom)}
+        userId={userIdOf(bottom)}
         sub={subOf(bottom)}
         captured={capturedFor(material, bottom)}
         avatar={isBot && bottom === botColor ? <Bot /> : undefined}

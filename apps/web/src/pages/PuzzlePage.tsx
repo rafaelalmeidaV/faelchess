@@ -243,7 +243,7 @@ export function PuzzlePage({ profile, route }: { profile: Profile; route: Route 
         onMove={onMove}
         syncKey={syncKey}
       />
-      <Clock name={profile.name} sub={`Você · ${sideName}`} active={userTurn} captured={capturedFor(material, userColor)} />
+      <Clock name={profile.name} userId={profile.userId} sub={`Você · ${sideName}`} active={userTurn} captured={capturedFor(material, userColor)} />
     </>
   );
 

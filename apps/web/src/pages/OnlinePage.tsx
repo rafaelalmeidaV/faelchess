@@ -188,7 +188,7 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
 
   const board = (
     <>
-      <Clock name={seatName(top)} sub={seatSub(top)} captured={capturedFor(material, top)} ms={remaining(top)} active={state.status === 'playing' && turn === top} />
+      <Clock name={seatName(top)} userId={seat(top)?.userId} sub={seatSub(top)} captured={capturedFor(material, top)} ms={remaining(top)} active={state.status === 'playing' && turn === top} />
       <Board
         fen={browser.live ? fen : browser.viewFen}
         orientation={orientation}
@@ -197,7 +197,7 @@ export function OnlinePage({ gameId, profile }: { gameId: string; profile: Profi
         check={browser.live ? new Chess(fen).inCheck() : browser.viewCheck}
         onMove={onMove}
       />
-      <Clock name={seatName(bottom)} sub={seatSub(bottom)} captured={capturedFor(material, bottom)} ms={remaining(bottom)} active={state.status === 'playing' && turn === bottom} />
+      <Clock name={seatName(bottom)} userId={seat(bottom)?.userId} sub={seatSub(bottom)} captured={capturedFor(material, bottom)} ms={remaining(bottom)} active={state.status === 'playing' && turn === bottom} />
     </>
   );
 

@@ -1,9 +1,11 @@
-import { Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react';
-import { useState } from 'react';
+import { Camera, Eye, EyeOff, KeyRound, ShieldCheck, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { Box, Grid, HStack, Stack } from 'styled-system/jsx';
 import { AppearanceSettings } from '../components/AppearanceSettings';
 import { Muted, Panel } from '../components/kit';
-import { Button, Field, Heading, IconButton, Input, Text, toaster } from '../components/ui';
+import { Avatar, Button, Field, Heading, IconButton, Input, Text, toaster } from '../components/ui';
+import { api } from '../lib/api';
+import { avatarUrl, bumpAvatarVersion, prepareAvatar } from '../lib/avatar';
 import { getAccessKey, saveAccessKey, saveProfile, slugify, type Profile } from '../lib/profile';
 
 function CardHead({ title, sub }: { title: string; sub: string }) {
@@ -30,6 +32,74 @@ function KeyField({ value, onChange }: { value: string; onChange: (v: string) =>
       </HStack>
       <Field.HelperText>Definida no .env da API (ACCESS_KEY). Convidados de partidas online não precisam dela.</Field.HelperText>
     </Field.Root>
+  );
+}
+
+/** Foto de perfil: só quem tem a chave envia. Fica no servidor e aparece nas partidas para quem joga com você. */
+function AvatarPicker({ profile, hasKey }: { profile: Profile; hasKey: boolean }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  const refresh = () => {
+    bumpAvatarVersion();
+    setTick((t) => t + 1);
+  };
+  const fail = (e: unknown) =>
+    toaster.create({ title: 'Não deu para salvar a foto', description: e instanceof Error ? e.message : undefined, type: 'error' });
+
+  const pick = async (file?: File) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      await api.setAvatar(profile.userId, await prepareAvatar(file));
+      refresh();
+      toaster.create({ title: 'Foto atualizada', type: 'success' });
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = '';
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await api.removeAvatar(profile.userId);
+      refresh();
+      toaster.create({ title: 'Foto removida', type: 'success' });
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Stack gap="2">
+      <Text textStyle="sm" fontWeight="medium">
+        Foto de perfil
+      </Text>
+      <HStack gap="4">
+        <Avatar.Root key={`${profile.userId}-${tick}`} size="2xl" colorPalette="jade" variant="subtle" borderRadius="l3">
+          <Avatar.Image src={avatarUrl(profile.userId)} alt="" />
+          <Avatar.Fallback>{profile.name.trim().charAt(0).toUpperCase()}</Avatar.Fallback>
+        </Avatar.Root>
+        <Stack gap="2">
+          <HStack gap="2" flexWrap="wrap">
+            <Button type="button" variant="surface" size="sm" onClick={() => input.current?.click()} disabled={!hasKey || busy} loading={busy} loadingText="Enviando…">
+              <Camera /> Escolher foto
+            </Button>
+            <Button type="button" variant="plain" size="sm" color="fg.muted" onClick={remove} disabled={!hasKey || busy}>
+              <Trash2 /> Remover
+            </Button>
+          </HStack>
+          <Muted>{hasKey ? 'Aparece para quem joga com você. É recortada em quadrado.' : 'Salve a chave de acesso para enviar uma foto.'}</Muted>
+        </Stack>
+        <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => pick(e.target.files?.[0])} />
+      </HStack>
+    </Stack>
   );
 }
 
@@ -94,6 +164,7 @@ export function SettingsPage({ profile, onSaved }: { profile: Profile | null; on
         <Panel asChild gap="5">
           <form onSubmit={save}>
             <CardHead title="Perfil" sub="Como você aparece nas partidas." />
+            <AvatarPicker profile={profile} hasKey={!!savedKey} />
             {profileFields}
             <Box>
               <Button type="submit" colorPalette="jade" minW="28">

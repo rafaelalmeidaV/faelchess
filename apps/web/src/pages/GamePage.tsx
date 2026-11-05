@@ -17,6 +17,7 @@ import { Clock } from '../components/Clock';
 import { EvalGraph } from '../components/EvalGraph';
 import { GameLayout } from '../components/GameLayout';
 import { Muted, Panel } from '../components/kit';
+import { MoveCardButton } from '../components/MoveCardButton';
 import { MoveFeedback, San } from '../components/MoveFeedback';
 import { MoveList } from '../components/MoveList';
 import { Alert, Badge, Button, Checkbox, Heading, IconButton, Link, Spinner, Table, Text, toaster } from '../components/ui';
@@ -269,6 +270,21 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
         {move?.classification ? (
           <MoveFeedback
             cls={move.classification}
+            action={(() => {
+              // Só o lance brilhante de quem está vendo a partida (é o nome e a foto dessa pessoa que saem na imagem).
+              const mover = move.color === 'w' ? game.white : game.black;
+              if (move.classification !== 'brilliant' || !mover.userId || mover.userId !== profile.userId) return undefined;
+              return (
+                <MoveCardButton
+                  fenAfter={move.fenAfter}
+                  uci={move.uci}
+                  san={move.san}
+                  orientation={move.color === 'w' ? 'white' : 'black'}
+                  name={mover.name}
+                  userId={mover.userId}
+                />
+              );
+            })()}
             title={`${Math.ceil(move.ply / 2)}${move.color === 'w' ? '.' : '...'} ${move.san}`}
             subtitle={
               <>

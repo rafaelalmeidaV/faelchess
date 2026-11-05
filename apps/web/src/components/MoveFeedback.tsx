@@ -30,6 +30,7 @@ export function MoveFeedback({
   subtitle,
   best,
   extra,
+  action,
   tags = [],
 }: {
   cls: Classification;
@@ -39,6 +40,8 @@ export function MoveFeedback({
   /** Linha "Melhor era …" (só aparece quando o lance não foi o melhor). */
   best?: ReactNode;
   extra?: ReactNode;
+  /** Botão opcional no fim do cartão (ex.: gerar imagem do lance brilhante). */
+  action?: ReactNode;
   tags?: string[];
 }) {
   const color = CLS_COLORS[cls];
@@ -77,6 +80,7 @@ export function MoveFeedback({
           ))}
         </Wrap>
       )}
+      {action}
     </Stack>
   );
 }

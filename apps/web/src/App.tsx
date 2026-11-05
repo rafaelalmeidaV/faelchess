@@ -29,37 +29,18 @@ function NavLink({ href, active, icon, children }: { href: string; active: boole
   );
 }
 
-const SIDENAV_KEY = 'faelchess:sidenav';
-
 /**
  * Variáveis de layout: altura do cabeçalho e largura do menu lateral. O tabuleiro (GameLayout)
  * usa as duas para crescer no espaço que sobra. Nas telas de jogo, no desktop, o cabeçalho vira menu lateral.
  */
 const LAYOUT = {
   normal: css({ '--header-h': '57px', '--sidenav-w': '0px' }),
-  // Valores literais: o Panda gera o CSS na compilação e não enxerga constantes importadas (SIDENAV_W).
-  gameOpen: css({ '--header-h': { base: '57px', lg: '0px' }, '--sidenav-w': { base: '0px', lg: '220px' } }),
-  gameClosed: css({ '--header-h': { base: '57px', lg: '0px' }, '--sidenav-w': { base: '0px', lg: '64px' } }),
+  // Valores literais: o Panda gera o CSS na compilação e não enxerga constantes importadas.
+  game: css({ '--header-h': { base: '57px', lg: '0px' }, '--sidenav-w': { base: '0px', lg: '220px' } }),
 };
 
 export function App() {
   const route = useRoute();
-  const [sideOpen, setSideOpen] = useState(() => {
-    try {
-      return localStorage.getItem(SIDENAV_KEY) === 'open';
-    } catch {
-      return false;
-    }
-  });
-  const toggleSide = () =>
-    setSideOpen((o) => {
-      try {
-        localStorage.setItem(SIDENAV_KEY, o ? 'closed' : 'open');
-      } catch {
-        /* ok */
-      }
-      return !o;
-    });
   const [profile, setProfile] = useState<Profile | null>(getProfile);
   const [notice, setNotice] = useState('');
 
@@ -68,20 +49,6 @@ export function App() {
     if (!unsentCount()) return;
     flushUnsent().then((n) => n && setNotice(`${n} partida(s) guardada(s) foram enviadas para análise.`));
   }, []);
-
-  // O menu lateral desliza o tabuleiro sem redimensionar a janela, e o chessground guarda a posição do
-  // tabuleiro em cache: sem este aviso o clique cai na casa vizinha (e2 virava f2). Avisa a cada
-  // quadro enquanto o menu anima (a transição dura 0,18 s).
-  useEffect(() => {
-    let raf = 0;
-    const end = performance.now() + 300;
-    const tick = () => {
-      document.body.dispatchEvent(new Event('chessground.resize'));
-      if (performance.now() < end) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [sideOpen, route.path[0]]);
 
   const [section, id] = route.path;
   let page: React.ReactNode;
@@ -104,8 +71,8 @@ export function App() {
   ];
 
   return (
-    <div className={gameMode ? (sideOpen ? LAYOUT.gameOpen : LAYOUT.gameClosed) : LAYOUT.normal}>
-      {gameMode && <SideNav items={navItems} open={sideOpen} onToggle={toggleSide} />}
+    <div className={gameMode ? LAYOUT.game : LAYOUT.normal}>
+      {gameMode && <SideNav items={navItems} />}
       <Box as="header" className="glass-surface glass-blur" borderBottomWidth="1px" bg="gray.2" position="sticky" top="0" zIndex="sticky" hideFrom={gameMode ? 'lg' : undefined}>
         <Container maxW="8xl" px={{ base: '3', md: '6' }}>
           <HStack h="14" justify="space-between">

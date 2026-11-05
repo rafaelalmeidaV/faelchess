@@ -110,8 +110,16 @@ export function Board({ fen, orientation, movable, lastMove, check, shapes, onMo
     else cg.current?.set({ fen });
   };
 
+  // O chessground guarda a posição do tabuleiro na tela em cache e só a refaz quando a janela redimensiona,
+  // algo rola ou o TAMANHO do tabuleiro muda. Se ele só se mexer (menu lateral entrando, animação, fonte
+  // carregando) o cache fica velho e o clique cai na casa vizinha (e2 virava f2). Um `scroll` sintético é o que
+  // ele já escuta para limpar o cache (o evento `chessground.resize` só vale em navegador sem ResizeObserver).
+  // Fazer isso a cada toque garante o clique certo qualquer que seja o motivo do deslocamento; a fase de
+  // captura roda antes do tratador do chessground.
+  const refreshBounds = () => document.dispatchEvent(new Event('scroll'));
+
   return (
-    <div className="board-wrap">
+    <div className="board-wrap" onMouseDownCapture={refreshBounds} onTouchStartCapture={refreshBounds}>
       <div ref={el} className="board" />
       {promotion && (
         <div className="promotion" onClick={() => choosePromotion(null)}>

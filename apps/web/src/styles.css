@@ -18,9 +18,13 @@
   position: relative;
   width: var(--board-size);
   height: var(--board-size);
-  overflow: hidden;
-  border-radius: 4px;
+  /* Visível: os selos (classificação, xeque-mate) ficam no canto da casa e passam um pouco da borda do tabuleiro. */
+  overflow: visible;
   flex-shrink: 0;
+}
+.board-wrap cg-board,
+.promotion {
+  border-radius: 4px;
 }
 /* O chessground desloca as letras 24px e cada uma caía na casa vizinha (o "h" saía do tabuleiro).
    Aqui cada letra fica no canto inferior direito da própria casa, como no Lichess. */

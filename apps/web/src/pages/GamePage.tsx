@@ -223,19 +223,19 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
 
   const navButtons = (
     <HStack gap="2" justify="center" flexWrap="wrap">
-      <IconButton variant="surface" aria-label="Início" title="Início (Home)" onClick={() => go(-1)}>
+      <IconButton variant="outline" aria-label="Início" title="Início (Home)" onClick={() => go(-1)}>
         <ChevronsLeft />
       </IconButton>
-      <IconButton variant="surface" aria-label="Anterior" title="Anterior (←)" onClick={() => go((i) => Math.max(-1, i - 1))}>
+      <IconButton variant="outline" aria-label="Anterior" title="Anterior (←)" onClick={() => go((i) => Math.max(-1, i - 1))}>
         <ChevronLeft />
       </IconButton>
-      <IconButton variant="surface" aria-label="Próximo" title="Próximo (→)" onClick={() => go((i) => Math.min(n - 1, i + 1))}>
+      <IconButton variant="outline" aria-label="Próximo" title="Próximo (→)" onClick={() => go((i) => Math.min(n - 1, i + 1))}>
         <ChevronRight />
       </IconButton>
-      <IconButton variant="surface" aria-label="Fim" title="Fim (End)" onClick={() => go(n - 1)}>
+      <IconButton variant="outline" aria-label="Fim" title="Fim (End)" onClick={() => go(n - 1)}>
         <ChevronsRight />
       </IconButton>
-      <Button variant="surface" title="Virar (f)" onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))}>
+      <Button variant="outline" title="Virar (f)" onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))}>
         <Repeat2 /> Virar
       </Button>
     </HStack>
@@ -481,7 +481,7 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
           </Checkbox.Root>
           <Flex gap="2" flexWrap="wrap">
             <Button
-              variant="surface"
+              variant="outline"
               size="sm"
               onClick={() => {
                 void navigator.clipboard.writeText(game.pgn);
@@ -491,7 +491,7 @@ export function GamePage({ id, profile }: { id: string; profile: Profile }) {
               <Copy /> PGN
             </Button>
             {(status === 'done' || status === 'failed') && (
-              <Button variant="surface" size="sm" onClick={() => api.reanalyze(game._id).then(load)}>
+              <Button variant="outline" size="sm" onClick={() => api.reanalyze(game._id).then(load)}>
                 <RefreshCw /> Reanalisar
               </Button>
             )}

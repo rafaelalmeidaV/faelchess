@@ -4,7 +4,8 @@ import type { Api } from 'chessground/api';
 import type { Config } from 'chessground/config';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { mateShapes } from '../lib/mate';
 import 'chessground/assets/chessground.base.css';
 import 'chessground/assets/chessground.brown.css';
 import 'chessground/assets/chessground.cburnett.css';
@@ -69,7 +70,8 @@ export function Board({ fen, orientation, movable, lastMove, check, shapes, onMo
       fen,
       orientation,
       turnColor,
-      check: check ? turnColor : false,
+      // Em xeque-mate o rei mated sempre fica com o brilho vermelho de xeque, mesmo onde a tela não passa `check`.
+      check: check || chess.isCheckmate() ? turnColor : false,
       lastMove: lastMoveKey ? ([lastMoveKey.slice(0, 2), lastMoveKey.slice(2, 4)] as Key[]) : undefined,
       viewOnly: false,
       movable: {
@@ -93,9 +95,11 @@ export function Board({ fen, orientation, movable, lastMove, check, shapes, onMo
     cg.current?.set(config);
   }, [fen, orientation, movable, lastMoveKey, check, syncKey]);
 
+  // Selos de xeque-mate (rei mated e rei vencedor) valem em qualquer tela com tabuleiro.
+  const mate = useMemo(() => mateShapes(fen), [fen]);
   useEffect(() => {
-    cg.current?.setAutoShapes(shapes ?? []);
-  }, [shapes]);
+    cg.current?.setAutoShapes([...(shapes ?? []), ...mate]);
+  }, [shapes, mate]);
 
   const choosePromotion = (piece: (typeof PROMO_PIECES)[number] | null) => {
     const p = promotion;
